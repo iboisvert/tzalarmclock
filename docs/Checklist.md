@@ -1,0 +1,17 @@
+# TODO
+- Ring an alarm
+- Remove timezone
+  - Use pencil icon to edit, add remove button for timezone
+- Receive TZ change broadcasts
+- Alarm recurrence
+- Alarm scheduling
+- Fix update of alarm list on change alarm enabled switch
+- Delete alarm
+- Fix scheduling of alarms by date or recurring
+- Warn user on app startup if permission to set alarm is not granted
+- Responsive display alarm properties view
+- Fix responsive display time chooser dialog
+- ~Move formatters to repo~
+- ~Enumerate system notification sounds~
+- ~Build sound chooser~
+- ~Time zone chooser~
