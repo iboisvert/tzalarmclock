@@ -24,3 +24,7 @@ dependencyResolutionManagement {
 
 rootProject.name = "TzAlarmClock"
 include(":app")
+include(":domain")
+include(":data")
+include(":alarm")
+include(":ui")
