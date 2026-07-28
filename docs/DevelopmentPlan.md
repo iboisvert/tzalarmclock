@@ -31,6 +31,8 @@ stages build on. ⚠ = assumption.
   the activity is shown. This is the standard mechanism for over-lock-screen
   alarm UI on API 31+ and for bypassing DND when the channel is configured
   with `AudioAttributes.USAGE_ALARM`.
+- ⚠ **Dev process**: Work on each phase will be committed to a branch called "phaseN"
+  where N is the number of the phase.
 - Root package: `imb.tzalarmclock` (per spec).
 
 ---
@@ -64,17 +66,30 @@ across process death and restarts, independent of scheduling or UI.
 Covers: *Alarm Definition*, *App Settings* (storage half only).
 
 - `Alarm` entity: id, name, time (wall-clock, no date), optional IANA time
-  zone id, schedule type (`ONE_TIME_DATE | WEEKLY | MONTHLY`), schedule
-  payload (date, or set of weekdays, or set of days-of-month), enabled
-  flag, ringtone URI (nullable → falls back to setting), vibration flag
-  (nullable → falls back to setting).
+  zone id, schedule type (`NEXT_OCCURRENCE | ONE_TIME_DATE | WEEKLY |
+  MONTHLY`), schedule payload (none, or date, or set of weekdays, or set of
+  days-of-month), enabled flag, ringtone URI (nullable → falls back to
+  setting), vibration flag (nullable → falls back to setting).
   - ⚠ *Recurrence vs fixed date are mutually exclusive* per the spec's "or"
     — modeled as a single `scheduleType` discriminator, not independent
     booleans.
+  - ⚠ *`NEXT_OCCURRENCE` is a fourth schedule type*, not in the original
+    three: the spec's baseline alarm has neither a date nor a recurrence
+    ("the only temporal field required to define an alarm is time"). Giving
+    it its own type avoids storing a synthesized date that would go stale
+    the moment the device changes zone.
 - Settings schema: home time zone, snooze period, max snooze count,
   default ringtone, alarm volume, escalation on/off, default vibration,
   12/24-hour format. Stored in DataStore, loaded at app start, written on
   settings-page close per spec.
+  - ⚠ *Fresh-install defaults* aren't specified: 10-minute snooze, 3
+    snoozes, full alarm volume, no escalation, vibration on, 24-hour
+    times, and home zone / default ringtone left unset so they follow the
+    device zone and the system alarm sound respectively.
+  - ⚠ *Unknown zone ids degrade rather than fail*: an alarm or home-zone
+    setting naming a zone the platform's tzdb no longer has reads back as
+    "no zone" (floating / follow-device) instead of failing the read,
+    since one stale id must not make the alarm list unreadable.
 - Repository layer wrapping Room + DataStore with Flow-based reads so UI
   stages can observe changes reactively.
 
@@ -369,7 +384,8 @@ Consolidated list of the ⚠ items above, for quick review/sign-off:
 2. Room for alarms, DataStore for settings.
 3. `AlarmManager.setAlarmClock()` as the scheduling primitive.
 4. Full-screen-intent notification + foreground service for the ringing UI.
-5. Recurrence and fixed-date are mutually exclusive per alarm.
+5. Recurrence and fixed-date are mutually exclusive per alarm, with a
+   fourth `NEXT_OCCURRENCE` schedule type for the spec's time-only alarm.
 6. DST spring-forward gap → skip that occurrence; fall-back overlap →
    resolve to first instant.
 7. Monthly recurrence on a day that doesn't exist in a given month is
@@ -391,3 +407,8 @@ Consolidated list of the ⚠ items above, for quick review/sign-off:
 14. Product decision (not an ambiguity resolution): the Details page's
     read-only "alarm time in local time zone" field from the spec is
     dropped; that conversion is only shown on the Summary page.
+15. Fresh-install settings defaults (10 min snooze, 3 snoozes, full
+    volume, no escalation, vibration on, 24-hour times, home zone and
+    default ringtone unset).
+16. A stored time-zone id the platform no longer recognises degrades to
+    "no zone" rather than failing the read.
