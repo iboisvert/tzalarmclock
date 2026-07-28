@@ -31,8 +31,8 @@ stages build on. ⚠ = assumption.
   the activity is shown. This is the standard mechanism for over-lock-screen
   alarm UI on API 31+ and for bypassing DND when the channel is configured
   with `AudioAttributes.USAGE_ALARM`.
-- ⚠ **Dev process**: Work on each phase will be committed to a branch called "phaseN"
-  where N is the number of the phase.
+- ⚠ **Dev process**: Work on each phase will be committed to a branch from main
+  called "phaseN" where N is the number of the phase.
 - Root package: `imb.tzalarmclock` (per spec).
 
 ---
@@ -145,7 +145,13 @@ countdown formatting used by the Summary page.
     have no defined "next occurrence," they're placed at the end of
     whichever group they'd otherwise fall into by time-of-day only, or in
     a trailing "Disabled" bucket — **flagged for product decision**, not
-    fully specified. Placeholder: append disabled alarms to "Later".
+    fully specified. Placeholder: append disabled alarms to "Later",
+    ordered among themselves by time of day.
+  - ⚠ *Enabled alarms with no future occurrence* (a one-time dated alarm
+    whose date has passed, before Stage 6 gets a chance to disable it)
+    have no time-to-ring either, so they are treated exactly like disabled
+    ones and appended to "Later". Same placeholder, same open product
+    question.
 
 **Exit criteria:** unit test suite covering the formatter's rounding table,
 DST gap/overlap dates, weekly/monthly recurrence math, and TZ-change
