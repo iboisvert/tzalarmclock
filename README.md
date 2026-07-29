@@ -13,10 +13,16 @@ given wall-clock time in whatever zone the device is currently in) or
 
 ## Status
 
-Pre-implementation. Requirements and a staged build plan are written; no app
-code exists yet. See [Documentation](#documentation) below and follow the
-stages in `docs/DevelopmentPlan.md` in order — each stage is independently
-testable and stages build on one another.
+In progress. Stages 0–3 of `docs/DevelopmentPlan.md` are done: the module
+skeleton, alarm/settings persistence, the recurrence and next-occurrence
+engine, and OS scheduling — alarms are armed with `AlarmManager`, re-armed
+after a reboot or an app update, and re-evaluated whenever the device's time
+zone changes. The four screens are still Stage 0 placeholders, so there is no
+way to create an alarm from the UI yet; that arrives with Stages 4–5.
+
+Stage 3's exit criteria are only partly verifiable on an emulator — reboot,
+force-stop, and OEM battery-optimisation behaviour need a real device. See
+`docs/Stage3ManualTests.md` for the checklist.
 
 ## Features
 

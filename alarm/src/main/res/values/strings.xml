@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="alarm_channel_name">Alarms</string>
+    <string name="alarm_channel_description">Rings when an alarm goes off.</string>
+    <string name="alarm_default_name">Alarm</string>
+    <string name="alarm_fired_text">Your alarm is ringing.</string>
+</resources>

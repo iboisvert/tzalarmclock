@@ -21,10 +21,13 @@ android {
 }
 
 dependencies {
-    implementation(project(":domain"))
+    // `api` because domain's Alarm appears in AlarmScheduler's signature.
+    api(project(":domain"))
     implementation(project(":data"))
     implementation(libs.androidx.core.ktx)
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
+    androidTestImplementation(libs.androidx.test.core.ktx)
+    androidTestImplementation(libs.kotlinx.coroutines.test)
     androidTestImplementation(libs.androidx.espresso.core)
 }

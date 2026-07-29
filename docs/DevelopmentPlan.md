@@ -180,9 +180,32 @@ battery optimization / OS updates*, *no internet dependency*.
 - Runtime handling for the API 31+ `SCHEDULE_EXACT_ALARM` permission: check
   on app start, and per the existing README TODO, warn the user if it's
   not granted since alarms silently won't fire otherwise.
+  - ⚠ *`USE_EXACT_ALARM` is the primary permission*, with
+    `SCHEDULE_EXACT_ALARM` declared only up to API 32 where the former
+    doesn't exist. `USE_EXACT_ALARM` is granted at install to apps whose
+    core function is an alarm clock and cannot be revoked out from under a
+    scheduled alarm, which is strictly more reliable — and reliability is
+    what this whole stage is for. The startup check is kept regardless,
+    since `canScheduleExactAlarms()` is the authority either way and the
+    permission *is* revocable on API 31–32.
 - Request exemption from battery optimization (`REQUEST_IGNORE_BATTERY_
   OPTIMIZATIONS`) with user-facing rationale, since Doze can otherwise
   delay non-`setAlarmClock` alarms.
+  - ⚠ *Offered, not forced*: surfaced as an action on the startup warning
+    rather than an unprompted system dialog on first launch, and worded as
+    advisory — `setAlarmClock` fires through stock Doze regardless, so the
+    real target is OEM power managers (the user's device is a Motorola).
+- ⚠ *Interim ringing*: Stage 6 owns the ringing UI, but Stage 3's own exit
+  criteria say an alarm must *ring*, so a fired alarm posts a
+  high-importance notification on a channel carrying the default alarm
+  sound and `USAGE_ALARM` attributes. Stage 6 replaces it with a
+  full-screen intent plus a playback service; because channel settings are
+  immutable once created, it will need a new channel id rather than an
+  edit to this one.
+- ⚠ *Non-recurring alarms are retired when they fire*, not when they are
+  dismissed. Without this an alarm defined by time alone re-arms forever,
+  since "the next occurrence of 07:00" is always tomorrow. Stage 6 moves
+  the trigger to dismiss, once there is a ringing screen to dismiss from.
 
 **Exit criteria:** an alarm set for +2 minutes rings on a real device after
 (a) a reboot, (b) force-stopping and relaunching the app, (c) changing the
@@ -418,3 +441,13 @@ Consolidated list of the ⚠ items above, for quick review/sign-off:
     default ringtone unset).
 16. A stored time-zone id the platform no longer recognises degrades to
     "no zone" rather than failing the read.
+17. `USE_EXACT_ALARM` (install-granted, non-revocable, intended for alarm
+    clock apps) is preferred over `SCHEDULE_EXACT_ALARM`, which is declared
+    only for API 31–32; the startup permission check is kept either way.
+18. Battery-optimisation exemption is offered from the startup warning
+    rather than requested unprompted, and is presented as advisory.
+19. Stage 3 ships an interim sound-carrying notification so its own "rings"
+    exit criteria are verifiable; Stage 6 supersedes it on a new channel id.
+20. An alarm with no future occurrence is disabled at the moment it fires
+    (Stage 3) rather than at dismiss (Stage 6), so a time-only alarm can't
+    re-arm itself indefinitely.

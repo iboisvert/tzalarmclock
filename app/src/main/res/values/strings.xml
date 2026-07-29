@@ -1,3 +1,8 @@
 <resources>
     <string name="app_name">TzAlarmClock</string>
+    <string name="warning_exact_alarms">Alarms are turned off by the system. Until you allow exact alarms, none of your alarms will ring.</string>
+    <string name="warning_notifications">Notifications are blocked, so a ringing alarm won\'t show anything on screen.</string>
+    <string name="warning_battery">Battery optimisation is on for this app. Alarms should still ring, but some phones delay them.</string>
+    <string name="warning_action_grant">Allow exact alarms</string>
+    <string name="warning_action_allow">Allow</string>
 </resources>
