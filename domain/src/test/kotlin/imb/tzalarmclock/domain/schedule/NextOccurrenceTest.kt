@@ -10,14 +10,105 @@ import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
 import java.time.ZoneId
+import java.time.ZonedDateTime
 
 class NextOccurrenceTest {
 
     // 2026-07-27 is a Monday, which every weekday expectation below is anchored to.
     private val toronto = ZoneId.of("America/Toronto")
     private val paris = ZoneId.of("Europe/Paris")
+    private val utcZoneId = ZoneId.of("UTC")
+    private val losAngelesZoneId = ZoneId.of("America/Los_Angeles")
+    private val kolkataZoneId = ZoneId.of("Asia/Kolkata")
+    private val newYorkZoneId = ZoneId.of("America/New_York")
+    private val singaporeZoneId = ZoneId.of("Asia/Singapore")
+
+    private fun zonedDateTime(year: Int, month: Int, dayOfMonth: Int, hour: Int, minute: Int, zoneId: ZoneId): ZonedDateTime =
+        ZonedDateTime.of(LocalDateTime.of(year, month, dayOfMonth, hour, minute), zoneId)
+    private fun localDateTime(year: Int, month: Int, dayOfMonth: Int): LocalDate =
+        LocalDate.of(year, month, dayOfMonth)
 
     // -- Time-only alarms ---------------------------------------------------
+
+    @Test
+    fun `alarm rings later the same day in the same tz`() {
+// - if alarm time is T13:00Z and current time is 2026-02-02T12:59Z then first valid day would be 2026-02-02
+        val alarm = alarm(at = LocalTime.of(13, 0))
+        val now = zonedDateTime(2026, 2, 2, 12, 59, utcZoneId)
+        val expected = localDateTime(2026, 2, 2)
+        val actual = alarm.nextOccurrenceAfter(now)
+        assertEquals(expected, actual?.toLocalDate())
+    }
+
+    @Test
+    fun `alarm same time as now in the same tz`() {
+// - if alarm time is T13:00Z and current time is 2026-02-02T13:00Z then first valid day would be 2026-02-03
+        val alarm = alarm(at = LocalTime.of(13, 0))
+        val now = zonedDateTime(2026, 2, 2, 13, 0, utcZoneId)
+        val expected = localDateTime(2026, 2, 3)
+        val actual = alarm.nextOccurrenceAfter(now)
+        assertEquals(expected, actual?.toLocalDate())
+    }
+
+    @Test
+    fun `alarm rings later the same day in different tz`() {
+// - if alarm time is T08:00+05:30(02:30Z) and current time is 2026-02-02T18:29-08(02:29Z) then first valid day would be 2026-02-02
+        val alarm = alarm(at = LocalTime.of(8, 0), zone = kolkataZoneId)
+        val now = zonedDateTime(2026, 2, 2, 18, 29, losAngelesZoneId)
+        val expected = localDateTime(2026, 2, 2)
+        val actual = alarm.nextOccurrenceAfter(now)
+        assertEquals(expected, actual?.toLocalDate())
+    }
+
+    @Test
+    fun `alarm same time as now in different tz`() {
+// - if alarm time is T08:00+05:30(02:30Z) and current time is 2026-02-02T18:30-08(02:30Z) then first valid day would be 2026-02-03
+        val alarm = alarm(at = LocalTime.of(8, 0), zone = kolkataZoneId)
+        val now = zonedDateTime(2026, 2, 2, 18, 30, losAngelesZoneId)
+        val expected = localDateTime(2026, 2, 3)
+        val actual = alarm.nextOccurrenceAfter(now)
+        assertEquals(expected, actual?.toLocalDate())
+    }
+
+    @Test
+    fun `alarm same time as now in different tz 2`() {
+// - if alarm time is T13:00-05(18:00Z) and current time is 2026-02-02T02:00+08(18:00Z) then first valid day would be 2026-02-02
+        val alarm = alarm(at = LocalTime.of(13, 0), zone = newYorkZoneId)
+        val now = zonedDateTime(2026, 2, 2, 2, 0, singaporeZoneId)
+        val expected = localDateTime(2026, 2, 3)
+        val actual = alarm.nextOccurrenceAfter(now)
+        assertEquals(expected, actual?.toLocalDate())
+    }
+
+    @Test
+    fun `alarm same time as now in different tz 3`() {
+// - if alarm time is T13:00-05(18:00Z) and current time is 2026-02-02T01:59+08(17:59Z) then first valid day would be 2026-02-02
+        val alarm = alarm(at = LocalTime.of(13, 0), zone = newYorkZoneId)
+        val now = zonedDateTime(2026, 2, 2, 1, 59, singaporeZoneId)
+        val expected = localDateTime(2026, 2, 2)
+        val actual = alarm.nextOccurrenceAfter(now)
+        assertEquals(expected, actual?.toLocalDate())
+    }
+
+    @Test
+    fun `recurring alarm first valid day next week`() {
+// - If today is 2026-02-02 (Monday) but first eligible day is Sunday then expected day is 2026-02-08 (Sunday)
+        val alarm = alarm(at = LocalTime.of(13, 0), on = AlarmSchedule.Weekly(setOf(DayOfWeek.SUNDAY)))
+        val now = zonedDateTime(2026, 2, 2, 12, 59, utcZoneId)
+        val expected = localDateTime(2026, 2, 8)
+        val actual = alarm.nextOccurrenceAfter(now)
+        assertEquals(expected, actual?.toLocalDate())
+    }
+
+    @Test
+    fun `recurring alarm first valid day this week`() {
+// - If today is 2026-02-01 (Sunday) but first eligible day is Monday then expected day is 2026-02-02 (Monday)
+        val alarm = alarm(at = LocalTime.of(13, 0), on = AlarmSchedule.Weekly(setOf(DayOfWeek.MONDAY)))
+        val now = zonedDateTime(2026, 2, 1, 12, 59, utcZoneId)
+        val expected = localDateTime(2026, 2, 2)
+        val actual = alarm.nextOccurrenceAfter(now)
+        assertEquals(expected, actual?.toLocalDate())
+    }
 
     @Test
     fun `a time-only alarm rings later the same day`() {
