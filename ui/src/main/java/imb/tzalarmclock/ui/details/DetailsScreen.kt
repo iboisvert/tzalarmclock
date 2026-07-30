@@ -21,6 +21,7 @@ import imb.tzalarmclock.ui.theme.TzAlarmClockTheme
 @Composable
 fun DetailsScreen(
     onBack: () -> Unit,
+    alarmId: Long? = null,
     modifier: Modifier = Modifier,
 ) {
     Scaffold(
@@ -42,7 +43,8 @@ fun DetailsScreen(
                 .padding(innerPadding),
             contentAlignment = Alignment.Center,
         ) {
-            Text("Alarm form goes here.")
+            // Stage 5 replaces this with the real create/edit form.
+            Text(if (alarmId != null) "Editing alarm #$alarmId" else "New alarm form goes here.")
         }
     }
 }
