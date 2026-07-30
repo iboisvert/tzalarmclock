@@ -53,21 +53,21 @@ re-run the insert (or flip `enabled` back to 1) before each case below.
 
 Each one passes if the alarm audibly rings at the expected minute.
 
-- [ ] **(a) Reboot.** Arm for +2 min, `adb reboot`, leave the device alone and
+- [x] **(a) Reboot.** Arm for +2 min, `adb reboot`, leave the device alone and
       unlock it once it comes up. The alarm is re-armed by `BootReceiver`, but
       only after the first unlock — the database is credential-protected, so
       `BOOT_COMPLETED` on a still-locked device can't read it. If the device
       isn't unlocked before the alarm is due, it will not ring; that's a known
       limitation of Stage 3, not a bug in this test.
 
-- [ ] **(b) Force-stop, then relaunch.** Arm for +2 min, force-stop the app
+- [x] **(b) Force-stop, then relaunch.** Arm for +2 min, force-stop the app
       from Settings → Apps, wait ~30 s, then launch it again from the
       launcher. A force-stop clears the app's pending alarms *and* blocks
       broadcasts until the user launches it manually, so re-arming on launch
       is the only recovery path. Alarms will not survive a force-stop that is
       never followed by a launch — expected, and true of every alarm app.
 
-- [ ] **(c) Time-zone change mid-countdown.** Arm for +2 min, then change the
+- [x] **(c) Time-zone change mid-countdown.** Arm for +2 min, then change the
       device time zone (Settings → System → Date & time, turn off automatic,
       pick a zone several hours away). A floating alarm should re-arm to the
       same wall-clock time in the *new* zone, which almost certainly moves it
@@ -76,7 +76,7 @@ Each one passes if the alarm audibly rings at the expected minute.
       ring. Re-run with `zone_id` set to an IANA id (e.g. `'Europe/Berlin'`)
       to confirm a zone-locked alarm's instant does *not* move.
 
-- [ ] **(d) Battery optimisation enabled.** In Settings → Apps → TzAlarmClock
+- [x] **(d) Battery optimisation enabled.** In Settings → Apps → TzAlarmClock
       → Battery, set the app to "Optimised" or the Motorola equivalent (the
       startup banner offers the opposite, so decline it here). Arm for
       +2 min, turn the screen off and leave the device untouched.
