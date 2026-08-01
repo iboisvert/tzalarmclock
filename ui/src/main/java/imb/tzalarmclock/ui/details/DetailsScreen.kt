@@ -2,32 +2,18 @@
 
 package imb.tzalarmclock.ui.details
 
-import android.content.Intent
-import android.media.RingtoneManager
-import android.net.Uri
-import android.provider.Settings
 import androidx.activity.compose.BackHandler
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Clear
-import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -61,13 +47,15 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.viewmodel.compose.viewModel
 import imb.tzalarmclock.domain.model.ScheduleType
+import imb.tzalarmclock.ui.common.EditableRow
+import imb.tzalarmclock.ui.common.RingtonePickerRow
+import imb.tzalarmclock.ui.common.TimeZonePickerDialog
 import imb.tzalarmclock.ui.theme.TzAlarmClockTheme
 import java.time.DayOfWeek
 import java.time.Instant
@@ -212,9 +200,10 @@ private fun DetailsScreen(
 
             HorizontalDivider()
 
-            RingtoneRow(
+            RingtonePickerRow(
+                label = "Ringtone",
                 ringtoneUri = uiState.ringtoneUri,
-                defaultRingtoneUri = uiState.defaultRingtoneUri,
+                fallbackUri = uiState.defaultRingtoneUri,
                 onRingtoneChanged = onRingtoneChanged,
             )
 
@@ -283,34 +272,6 @@ private fun DetailsScreen(
 }
 
 @Composable
-private fun EditableRow(
-    label: String,
-    value: String,
-    onEdit: () -> Unit,
-    onClear: (() -> Unit)? = null,
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onEdit),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Column(modifier = Modifier.weight(1f)) {
-            Text(label, style = MaterialTheme.typography.labelMedium)
-            Text(value, style = MaterialTheme.typography.bodyLarge)
-        }
-        IconButton(onClick = onEdit) {
-            Icon(Icons.Filled.Edit, contentDescription = "Edit $label")
-        }
-        if (onClear != null) {
-            IconButton(onClick = onClear) {
-                Icon(Icons.Filled.Clear, contentDescription = "Clear $label")
-            }
-        }
-    }
-}
-
-@Composable
 private fun ScheduleTypeSelector(selected: ScheduleType, onSelect: (ScheduleType) -> Unit) {
     val options = ScheduleType.entries
     SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
@@ -356,42 +317,6 @@ private fun MonthDaySelector(selected: Set<Int>, onToggle: (Int) -> Unit) {
             )
         }
     }
-}
-
-@Composable
-private fun RingtoneRow(
-    ringtoneUri: String?,
-    defaultRingtoneUri: String?,
-    onRingtoneChanged: (String?) -> Unit,
-) {
-    val context = LocalContext.current
-    val launcher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
-        @Suppress("DEPRECATION")
-        val uri = result.data?.getParcelableExtra<Uri>(RingtoneManager.EXTRA_RINGTONE_PICKED_URI)
-        onRingtoneChanged(uri?.toString())
-    }
-    val effectiveUri = ringtoneUri ?: defaultRingtoneUri
-        ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)?.toString()
-    val title = remember(effectiveUri) {
-        effectiveUri?.let {
-            runCatching { RingtoneManager.getRingtone(context, Uri.parse(it))?.getTitle(context) }.getOrNull()
-        } ?: "Unknown"
-    }
-    EditableRow(
-        label = "Ringtone",
-        value = title,
-        onEdit = {
-            val intent = Intent(RingtoneManager.ACTION_RINGTONE_PICKER).apply {
-                putExtra(RingtoneManager.EXTRA_RINGTONE_TYPE, RingtoneManager.TYPE_ALARM)
-                putExtra(RingtoneManager.EXTRA_RINGTONE_SHOW_DEFAULT, true)
-                putExtra(RingtoneManager.EXTRA_RINGTONE_SHOW_SILENT, false)
-                putExtra(RingtoneManager.EXTRA_RINGTONE_DEFAULT_URI, Settings.System.DEFAULT_ALARM_ALERT_URI)
-                putExtra(RingtoneManager.EXTRA_RINGTONE_EXISTING_URI, effectiveUri?.let(Uri::parse))
-            }
-            launcher.launch(intent)
-        },
-        onClear = if (ringtoneUri != null) ({ onRingtoneChanged(null) }) else null,
-    )
 }
 
 @Composable
@@ -464,40 +389,6 @@ private fun AlarmDatePickerDialog(
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
     ) {
         DatePicker(state = state)
-    }
-}
-
-@Composable
-private fun TimeZonePickerDialog(onSelect: (ZoneId) -> Unit, onDismiss: () -> Unit) {
-    var query by remember { mutableStateOf("") }
-    val zoneIds = remember { ZoneId.getAvailableZoneIds().sorted() }
-    val filtered = remember(query) {
-        if (query.isBlank()) zoneIds else zoneIds.filter { it.contains(query, ignoreCase = true) }
-    }
-    Dialog(onDismissRequest = onDismiss) {
-        Surface(shape = MaterialTheme.shapes.extraLarge, tonalElevation = 6.dp) {
-            Column(modifier = Modifier.padding(16.dp).heightIn(max = 480.dp)) {
-                OutlinedTextField(
-                    value = query,
-                    onValueChange = { query = it },
-                    label = { Text("Search time zone") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                Spacer(Modifier.height(8.dp))
-                LazyColumn {
-                    items(filtered, key = { it }) { id ->
-                        Text(
-                            text = id,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable { onSelect(ZoneId.of(id)) }
-                                .padding(vertical = 12.dp, horizontal = 8.dp),
-                        )
-                    }
-                }
-            }
-        }
     }
 }
 
