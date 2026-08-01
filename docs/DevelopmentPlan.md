@@ -364,7 +364,34 @@ repeatable test or audit step checked off, not just "seems to work."
 
 ---
 
-## Stage 9 — Polish & release readiness
+## Stage 9 — R8 optimization & release build CI
+
+**Goal:** turn on release-build code shrinking/obfuscation and make CI build
+and test that variant, so R8 issues (missing keep rules, stripped reflection
+targets, etc.) surface before Stage 10's polish pass rather than after.
+
+- Enable R8 optimization for the `release` build type (flip `app/build.gradle
+  .kts`'s `optimization.enable` from `false` to `true`), including
+  minification/shrinking and adding whatever `proguard-rules.pro` keep rules
+  Room, KSP-generated code, and Compose need to survive shrinking intact.
+- Update `.github/workflows/build.yml` to build and unit-test the `release`
+  variant instead of `debug` (`assembleRelease` in place of `assembleDebug`;
+  `testReleaseUnitTest` in place of `testDebugUnitTest`, still paired with
+  the explicit `:domain:test` since `domain` is a plain Kotlin/JVM module
+  with no build-type variants).
+  - ⚠ *Still no signing config*: CI continues to produce an unsigned release
+    APK/AAR, same as today — this stage is about exercising R8, not standing
+    up a signing/release pipeline, which is out of scope until the app is
+    ready to ship.
+
+**Exit criteria:** `./gradlew assembleRelease testReleaseUnitTest :domain:test`
+succeeds locally and in CI with R8 enabled, with no runtime regressions from
+shrinking (spot-check Room queries, Compose navigation, and alarm scheduling
+still work on a release-variant install).
+
+---
+
+## Stage 10 — Polish & release readiness
 
 **Goal:** ship-quality pass across everything built.
 
@@ -382,7 +409,7 @@ repeatable test or audit step checked off, not just "seems to work."
   this plan (several already are: TZ broadcasts → Stage 3, alarm
   scheduling/recurrence → Stages 2–3, delete alarm → Stage 5, summary
   refresh bug → Stage 4, permission warning → Stages 3/8, responsive
-  layout → Stage 9).
+  layout → Stage 10).
 
 **Exit criteria:** fresh-install walkthrough of all four pages with no
 placeholder data, on at least two screen sizes.
