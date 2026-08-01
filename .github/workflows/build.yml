@@ -1,0 +1,58 @@
+name: Build and Unit Test
+
+on:
+  push:
+    branches: 
+      - main
+      - dev/*
+  pull_request:
+    branches:
+      - main
+      - dev/*
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android platform 37
+        run: sdkmanager "platforms;android-37"
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      # Compiles every module (app, domain, data, alarm, ui). Does not touch
+      # androidTest sources or require a device/emulator.
+      - name: Build
+        run: ./gradlew assembleDebug --stacktrace
+
+      # testDebugUnitTest covers the Android library/app modules; :domain:test
+      # is targeted explicitly because domain is a plain Kotlin/JVM module
+      # whose unit test task is just "test", not "testDebugUnitTest". Neither
+      # touches androidTest (instrumented) sources, so no emulator is needed.
+      - name: Unit test
+        run: ./gradlew testDebugUnitTest :domain:test --stacktrace
+
+      - name: Upload unit test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: unit-test-reports
+          path: '**/build/reports/tests/'
+          retention-days: 7
