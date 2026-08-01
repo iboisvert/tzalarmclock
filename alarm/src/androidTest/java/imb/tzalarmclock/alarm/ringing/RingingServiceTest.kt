@@ -1,0 +1,125 @@
+package imb.tzalarmclock.alarm.ringing
+
+import androidx.test.ext.junit.runners.AndroidJUnit4
+import androidx.test.platform.app.InstrumentationRegistry
+import imb.tzalarmclock.alarm.schedule.AlarmIntents
+import imb.tzalarmclock.data.DataProvider
+import imb.tzalarmclock.domain.model.Alarm
+import imb.tzalarmclock.domain.model.AlarmSchedule
+import imb.tzalarmclock.domain.model.AppSettings
+import imb.tzalarmclock.domain.repository.AlarmRepository
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
+import org.junit.After
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
+import org.junit.Test
+import org.junit.runner.RunWith
+import java.time.DayOfWeek
+import java.time.LocalTime
+
+/**
+ * Covers the repository/scheduler side effects the ring workflow needs, which
+ * `AlarmReceiver` moved into [RingingService] as of Stage 6: a non-recurring
+ * alarm retires on *dismiss*, not on fire (so it can actually be snoozed
+ * first), and a snooze arms a new instant roughly one snooze period away
+ * without touching `enabled`.
+ */
+@RunWith(AndroidJUnit4::class)
+class RingingServiceTest {
+
+    private val context = InstrumentationRegistry.getInstrumentation().targetContext
+    private val alarms: AlarmRepository = DataProvider.alarmRepository(context)
+    private val snoozes = SnoozeRegistry(context)
+    private val created = mutableListOf<Long>()
+
+    @After
+    fun cleanUp() = runBlocking {
+        created.forEach {
+            snoozes.clear(it)
+            alarms.delete(it)
+        }
+    }
+
+    private suspend fun save(schedule: AlarmSchedule): Long {
+        val id = alarms.save(Alarm(time = LocalTime.of(7, 0), schedule = schedule, enabled = true))
+        created += id
+        return id
+    }
+
+    private suspend fun awaitAlarm(id: Long, predicate: (Alarm?) -> Boolean) {
+        withTimeout(TIMEOUT_MILLIS) {
+            while (!predicate(alarms.getAlarm(id))) delay(POLL_MILLIS)
+        }
+    }
+
+    private suspend fun awaitSnooze(id: Long, predicate: () -> Boolean) {
+        withTimeout(TIMEOUT_MILLIS) {
+            while (!predicate()) delay(POLL_MILLIS)
+        }
+    }
+
+    @Test
+    fun dismissingANonRecurringAlarmDisablesIt() = runBlocking {
+        val id = save(AlarmSchedule.NextOccurrence)
+
+        context.startService(RingingService.dismissIntent(context, id))
+
+        awaitAlarm(id) { it?.enabled == false }
+    }
+
+    @Test
+    fun dismissingARecurringAlarmLeavesItEnabledAndArmed() = runBlocking {
+        val id = save(AlarmSchedule.Weekly(DayOfWeek.entries.toSet()))
+
+        context.startService(RingingService.dismissIntent(context, id))
+
+        awaitAlarm(id) { it != null && AlarmIntents.existing(context, id) != null }
+        assertTrue(alarms.getAlarm(id)!!.enabled)
+    }
+
+    @Test
+    fun dismissingClearsAnyPendingSnooze() = runBlocking {
+        val id = save(AlarmSchedule.NextOccurrence)
+        snoozes.recordSnooze(id, System.currentTimeMillis() + 60_000)
+
+        context.startService(RingingService.dismissIntent(context, id))
+
+        awaitAlarm(id) { it?.enabled == false }
+        assertNull(snoozes.snoozedUntilMillis(id))
+    }
+
+    @Test
+    fun snoozingArmsAnInstantAboutOneSnoozePeriodAway() = runBlocking {
+        val id = save(AlarmSchedule.NextOccurrence)
+        val before = System.currentTimeMillis()
+
+        context.startService(RingingService.snoozeIntent(context, id))
+
+        awaitSnooze(id) { snoozes.snoozedUntilMillis(id) != null }
+        val expectedMillis = AppSettings.DEFAULT_SNOOZE_PERIOD_MINUTES * 60_000L
+        val actualMillis = snoozes.snoozedUntilMillis(id)!! - before
+        assertTrue(
+            "expected roughly $expectedMillis ms from now, was $actualMillis ms",
+            actualMillis in (expectedMillis - 5_000)..(expectedMillis + 15_000),
+        )
+    }
+
+    @Test
+    fun snoozingIncrementsTheSnoozeCountAndLeavesTheAlarmEnabled() = runBlocking {
+        val id = save(AlarmSchedule.NextOccurrence)
+
+        context.startService(RingingService.snoozeIntent(context, id))
+
+        awaitSnooze(id) { snoozes.snoozeCount(id) > 0 }
+        assertEquals(1, snoozes.snoozeCount(id))
+        assertTrue(alarms.getAlarm(id)!!.enabled)
+    }
+
+    private companion object {
+        const val TIMEOUT_MILLIS = 10_000L
+        const val POLL_MILLIS = 50L
+    }
+}

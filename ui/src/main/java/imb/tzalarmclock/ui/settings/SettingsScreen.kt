@@ -11,7 +11,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -23,7 +22,6 @@ import imb.tzalarmclock.ui.theme.TzAlarmClockTheme
 @Composable
 fun SettingsScreen(
     onBack: () -> Unit,
-    onPreviewRingingScreen: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     Scaffold(
@@ -47,11 +45,6 @@ fun SettingsScreen(
             verticalArrangement = Arrangement.Center,
         ) {
             Text("Settings form goes here.")
-            // Ringing is normally launched via full-screen intent (Stage 6);
-            // this link exists only so the placeholder is reachable for nav testing in Stage 0.
-            TextButton(onClick = onPreviewRingingScreen) {
-                Text("Preview ringing screen")
-            }
         }
     }
 }

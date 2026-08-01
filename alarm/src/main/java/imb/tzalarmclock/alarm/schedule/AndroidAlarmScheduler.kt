@@ -6,10 +6,12 @@ import android.content.Context
 import android.content.Intent
 import android.util.Log
 import imb.tzalarmclock.alarm.permission.ExactAlarmPermission
+import imb.tzalarmclock.alarm.ringing.SnoozeRegistry
 import imb.tzalarmclock.domain.model.Alarm
 import imb.tzalarmclock.domain.repository.AlarmRepository
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import java.time.Instant
 import java.time.ZonedDateTime
 
 /**
@@ -29,6 +31,7 @@ internal class AndroidAlarmScheduler(
     context: Context,
     private val alarms: AlarmRepository,
     private val registry: ArmedAlarmRegistry,
+    private val snoozes: SnoozeRegistry = SnoozeRegistry(context),
     private val clock: () -> ZonedDateTime = ZonedDateTime::now,
 ) : AlarmScheduler {
 
@@ -49,7 +52,8 @@ internal class AndroidAlarmScheduler(
     override suspend fun syncAll() = sync(alarms.getEnabledAlarms())
 
     override suspend fun sync(alarms: List<Alarm>) = lock.withLock {
-        val plan = armingPlan(alarms, clock())
+        val snoozedUntil = snoozes.allSnoozedUntilMillis().mapValues { Instant.ofEpochMilli(it.value) }
+        val plan = armingPlan(alarms, clock(), snoozedUntil)
         val wanted = plan.mapTo(mutableSetOf()) { it.alarmId }
 
         // Cancel first: an id that has left the plan is an alarm that was

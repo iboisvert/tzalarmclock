@@ -46,7 +46,7 @@ recurrence semantics, and DST handling, is in `docs/Requirements.md`.
 ## Non-functional requirements
 
 These are the reason the app exists and are treated as first-class,
-independently tested requirements (see Stage 8 of the development plan):
+independently tested requirements (see Stage 9 of the development plan):
 
 - Fires even when the phone is on silent or in Do Not Disturb.
 - Survives reboots, battery-optimization killing background processes, and

@@ -1,9 +1,11 @@
 package imb.tzalarmclock.alarm.receiver
 
+import android.app.ActivityManager
 import android.content.Intent
 import androidx.core.net.toUri
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import imb.tzalarmclock.alarm.ringing.RingingService
 import imb.tzalarmclock.alarm.schedule.AlarmIntents
 import imb.tzalarmclock.data.DataProvider
 import imb.tzalarmclock.domain.model.Alarm
@@ -13,40 +15,38 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import org.junit.After
-import org.junit.Assert.assertFalse
-import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
-import java.time.DayOfWeek
 import java.time.LocalTime
 
 /**
  * The fire path, driven through a real broadcast rather than by calling
- * `onReceive` directly — [android.content.BroadcastReceiver.goAsync] only works
- * inside an actual dispatch, and the asynchronous hand-off is exactly the part
+ * `onReceive` directly — the hand-off to [RingingService] is exactly the part
  * worth testing.
  *
- * The distinction under test is the one that would otherwise loop forever: an
- * alarm defined by time alone must switch itself off once it has rung, because
- * "the next occurrence of 07:00" is always tomorrow.
+ * The repository/scheduler side effects that used to happen here (retiring a
+ * non-recurring alarm, re-arming a recurring one) now happen inside
+ * [RingingService] on dismiss, not on fire — see `RingingServiceTest`.
  */
 @RunWith(AndroidJUnit4::class)
 class AlarmReceiverTest {
 
     private val context = InstrumentationRegistry.getInstrumentation().targetContext
     private val alarms: AlarmRepository = DataProvider.alarmRepository(context)
+    private val activityManager = context.getSystemService(ActivityManager::class.java)
     private val created = mutableListOf<Long>()
 
     @After
-    fun deleteCreatedAlarms() = runBlocking {
-        created.forEach { alarms.delete(it) }
+    fun cleanUp() = runBlocking {
+        created.forEach {
+            context.stopService(RingingService.dismissIntent(context, it))
+            alarms.delete(it)
+        }
     }
 
-    private suspend fun save(schedule: AlarmSchedule): Long {
-        val id = alarms.save(
-            Alarm(time = LocalTime.of(7, 0), schedule = schedule, enabled = true),
-        )
+    private suspend fun save(schedule: AlarmSchedule = AlarmSchedule.NextOccurrence, enabled: Boolean = true): Long {
+        val id = alarms.save(Alarm(time = LocalTime.of(7, 0), schedule = schedule, enabled = enabled))
         created += id
         return id
     }
@@ -60,38 +60,28 @@ class AlarmReceiverTest {
         context.sendBroadcast(intent)
     }
 
-    /**
-     * The receiver finishes on a background dispatcher, so results are awaited.
-     *
-     * These tests use `runBlocking` rather than `runTest` precisely for this:
-     * `runTest`'s virtual clock would skip the timeout instantly while the real
-     * broadcast was still in flight.
-     */
-    private suspend fun awaitAlarm(id: Long, predicate: (Alarm?) -> Boolean) {
+    // Not the ongoing notification's visibility: that also depends on the
+    // POST_NOTIFICATIONS runtime permission being granted, which is a
+    // separate, already-covered concern (SchedulingHealth) and isn't
+    // guaranteed to be granted to this test's own package.
+    private fun isRingingServiceRunning(): Boolean =
+        activityManager.getRunningServices(Int.MAX_VALUE)
+            .any { it.service.className == RingingService::class.java.name }
+
+    private suspend fun awaitRingingService() {
         withTimeout(TIMEOUT_MILLIS) {
-            while (!predicate(alarms.getAlarm(id))) delay(POLL_MILLIS)
+            while (!isRingingServiceRunning()) delay(POLL_MILLIS)
         }
     }
 
     @Test
-    fun retiresAnAlarmThatWillNeverRingAgain() = runBlocking {
-        val id = save(AlarmSchedule.NextOccurrence)
+    fun firingAnEnabledAlarmStartsTheRingingService() = runBlocking {
+        val id = save()
 
         fire(id)
 
-        awaitAlarm(id) { it?.enabled == false }
-        assertFalse(AlarmIntents.existing(context, id) != null)
-    }
-
-    @Test
-    fun leavesARecurringAlarmEnabledAndArmsItAgain() = runBlocking {
-        val id = save(AlarmSchedule.Weekly(DayOfWeek.entries.toSet()))
-
-        fire(id)
-
-        awaitAlarm(id) { it != null && AlarmIntents.existing(context, id) != null }
-        assertTrue(alarms.getAlarm(id)!!.enabled)
-        assertNotNull(AlarmIntents.existing(context, id))
+        awaitRingingService()
+        assertTrue(isRingingServiceRunning())
     }
 
     private companion object {

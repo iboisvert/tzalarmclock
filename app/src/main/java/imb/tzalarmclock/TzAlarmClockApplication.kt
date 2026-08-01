@@ -2,7 +2,7 @@ package imb.tzalarmclock
 
 import android.app.Application
 import imb.tzalarmclock.alarm.AlarmProvider
-import imb.tzalarmclock.alarm.notify.AlarmNotifications
+import imb.tzalarmclock.alarm.ringing.RingingNotifications
 import imb.tzalarmclock.data.DataProvider
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -31,7 +31,7 @@ class TzAlarmClockApplication : Application() {
     override fun onCreate() {
         super.onCreate()
 
-        AlarmNotifications.ensureChannel(this)
+        RingingNotifications.ensureChannel(this)
 
         val scheduler = AlarmProvider.scheduler(this)
         val alarms = DataProvider.alarmRepository(this)

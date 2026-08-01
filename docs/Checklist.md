@@ -1,7 +1,7 @@
 # TODO
 
 Strikethrough = done. The stage in brackets is where it landed in
-`DevelopmentPlan.md`; per Stage 10 this list is retired once everything on it
+`DevelopmentPlan.md`; per Stage 11 this list is retired once everything on it
 has been folded into that plan.
 
 - Ring an alarm — interim notification only [Stage 3]; real ringing UI [Stage 6]

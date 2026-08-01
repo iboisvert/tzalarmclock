@@ -9,7 +9,6 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import imb.tzalarmclock.ui.details.DetailsScreen
-import imb.tzalarmclock.ui.ringing.RingingScreen
 import imb.tzalarmclock.ui.settings.SettingsScreen
 import imb.tzalarmclock.ui.summary.SummaryScreen
 
@@ -46,14 +45,8 @@ fun TzAlarmClockNavHost(
                 onBack = { navController.popBackStack() },
             )
         }
-        composable(Routes.Ringing.route) {
-            RingingScreen(onDismiss = { navController.popBackStack() })
-        }
         composable(Routes.Settings.route) {
-            SettingsScreen(
-                onBack = { navController.popBackStack() },
-                onPreviewRingingScreen = { navController.navigate(Routes.Ringing.route) },
-            )
+            SettingsScreen(onBack = { navController.popBackStack() })
         }
     }
 }

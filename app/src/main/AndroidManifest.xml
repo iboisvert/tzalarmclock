@@ -24,6 +24,18 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!--
+          Not exported, no LAUNCHER intent-filter: only ever started by
+          RingingService (directly, or via the notification's full-screen
+          intent), never by the user or another app.
+        -->
+        <activity
+            android:name=".RingingActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:launchMode="singleInstance"
+            android:theme="@style/Theme.TzAlarmClock" />
     </application>
 
 </manifest>

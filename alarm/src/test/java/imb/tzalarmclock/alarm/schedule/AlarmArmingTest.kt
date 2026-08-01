@@ -139,4 +139,39 @@ class AlarmArmingTest {
 
         assertEquals(armed.ringsAt.toInstant().toEpochMilli(), armed.triggerAtMillis)
     }
+
+    @Test
+    fun `a snoozed alarm arms the snoozed instant instead of its computed next occurrence`() {
+        // 07:00 has already passed today, so the normal plan would be tomorrow.
+        val snoozedAt = now.toInstant().plusSeconds(600)
+
+        val plan = armingPlan(listOf(alarm(time = LocalTime.of(7, 0))), now, mapOf(1L to snoozedAt))
+
+        assertEquals(snoozedAt, plan.single().ringsAt.toInstant())
+    }
+
+    @Test
+    fun `a stale snoozed instant already in the past is ignored`() {
+        val staleSnooze = now.toInstant().minusSeconds(60)
+
+        val plan = armingPlan(listOf(alarm(time = LocalTime.of(7, 0))), now, mapOf(1L to staleSnooze))
+
+        // Falls back to the alarm's own computed next occurrence, not the stale snooze.
+        assertEquals(
+            ZonedDateTime.of(LocalDate.of(2026, 7, 30), LocalTime.of(7, 0), toronto).toInstant(),
+            plan.single().ringsAt.toInstant(),
+        )
+    }
+
+    @Test
+    fun `a snooze entry for a different alarm doesn't affect this one`() {
+        val snoozedAt = now.toInstant().plusSeconds(600)
+
+        val plan = armingPlan(listOf(alarm(id = 1, time = LocalTime.of(7, 0))), now, mapOf(2L to snoozedAt))
+
+        assertEquals(
+            ZonedDateTime.of(LocalDate.of(2026, 7, 30), LocalTime.of(7, 0), toronto).toInstant(),
+            plan.single().ringsAt.toInstant(),
+        )
+    }
 }

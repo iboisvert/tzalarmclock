@@ -334,7 +334,47 @@ behavior.
 
 ---
 
-## Stage 8 — Reliability & non-functional hardening pass
+## Stage 8 — Refactoring & bug-fixing pass
+
+**Goal:** pay down known issues and refactoring debt accumulated across
+Stages 1–7 before Stage 9's reliability/hardening pass audits the app —
+so that pass is checking a clean baseline rather than auditing around
+already-known-broken behavior.
+
+- **Known issue from Stage 6**: the Summary page's countdown/date display is
+  snooze-*unaware* — `buildSummaryUiState` computes next-occurrence straight
+  from the alarm's own schedule, with no knowledge of `SnoozeRegistry`
+  (`alarm` module), unlike `AndroidAlarmScheduler`'s arming plan, which
+  Stage 6 did make snooze-aware. Concretely: snooze a one-time alarm and the
+  Summary page shows tomorrow's naive next-occurrence (e.g. "Tomorrow, 24h")
+  while the OS is actually armed to ring in ~10 minutes (the snooze period).
+  Found during Stage 6's manual emulator verification on 2026-08-01; fix
+  deferred here rather than expanding Stage 6's scope. Fix shape: mirror the
+  `armingPlan` fix — give `buildSummaryUiState` (or its caller) the same
+  snoozed-until lookup so a snoozed alarm's displayed next-ring time matches
+  what's actually armed.
+- **Known issue from Stage 5**: the date selector on the Details page
+  (`AlarmDatePickerDialog`, wrapping Material3's `DatePickerDialog`) doesn't
+  display correctly in landscape — the calendar grid is clipped and its
+  later rows overlap the Cancel/OK buttons, cutting part of the current
+  month off entirely. Same root category as the time-picker landscape bug
+  Stage 5 already fixed (a Material3 picker component fighting a dialog
+  container that doesn't give it the space it needs in a short/landscape
+  viewport), just not caught at the time since the time picker was the one
+  reported. Confirmed via direct verification on 2026-08-01. Fix shape:
+  likely analogous to the time-picker fix — stop constraining the dialog's
+  width/height against the component's natural layout (e.g. drop
+  `usePlatformDefaultWidth`/add a proper scrollable, height-capped
+  container) so the calendar actually fits the landscape viewport instead
+  of overflowing it.
+
+**Exit criteria:** both known issues above are resolved and verified (in
+both portrait and landscape for the date/time pickers), with no regressions
+in the existing test suite.
+
+---
+
+## Stage 9 — Reliability & non-functional hardening pass
 
 **Goal:** dedicated pass on the four non-functional requirements, since
 each cuts across every stage above and is easy to regress incrementally.
@@ -364,11 +404,11 @@ repeatable test or audit step checked off, not just "seems to work."
 
 ---
 
-## Stage 9 — R8 optimization & release build CI
+## Stage 10 — R8 optimization & release build CI
 
 **Goal:** turn on release-build code shrinking/obfuscation and make CI build
 and test that variant, so R8 issues (missing keep rules, stripped reflection
-targets, etc.) surface before Stage 10's polish pass rather than after.
+targets, etc.) surface before Stage 11's polish pass rather than after.
 
 - Enable R8 optimization for the `release` build type (flip `app/build.gradle
   .kts`'s `optimization.enable` from `false` to `true`), including
@@ -391,7 +431,7 @@ still work on a release-variant install).
 
 ---
 
-## Stage 10 — Polish & release readiness
+## Stage 11 — Polish & release readiness
 
 **Goal:** ship-quality pass across everything built.
 
@@ -409,7 +449,7 @@ still work on a release-variant install).
   this plan (several already are: TZ broadcasts → Stage 3, alarm
   scheduling/recurrence → Stages 2–3, delete alarm → Stage 5, summary
   refresh bug → Stage 4, permission warning → Stages 3/8, responsive
-  layout → Stage 10).
+  layout → Stage 11).
 
 **Exit criteria:** fresh-install walkthrough of all four pages with no
 placeholder data, on at least two screen sizes.

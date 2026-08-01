@@ -4,7 +4,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import imb.tzalarmclock.alarm.AlarmProvider
-import imb.tzalarmclock.alarm.notify.AlarmNotifications
+import imb.tzalarmclock.alarm.ringing.RingingNotifications
 
 /**
  * Re-arms everything after the OS has thrown our pending alarms away.
@@ -26,7 +26,7 @@ class BootReceiver : BroadcastReceiver() {
 
         val app = context.applicationContext
         goAsyncWork(TAG) {
-            AlarmNotifications.ensureChannel(app)
+            RingingNotifications.ensureChannel(app)
             AlarmProvider.scheduler(app).syncAll()
         }
     }
