@@ -9,6 +9,10 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import imb.tzalarmclock.alarm.R
 import imb.tzalarmclock.domain.model.Alarm
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+import java.util.Locale
 
 /**
  * The notification that keeps [RingingService] a valid foreground service and
@@ -25,6 +29,13 @@ object RingingNotifications {
 
     const val CHANNEL_ID = "alarm_ringing_v2"
 
+    /**
+     * Separate from [CHANNEL_ID]: a snoozed alarm is an informational, ignorable
+     * state (unlike an actively-ringing one), so it gets its own lower-importance
+     * channel rather than reusing the high-importance ringing one.
+     */
+    const val SNOOZED_CHANNEL_ID = "alarm_snoozed_v1"
+
     fun ensureChannel(context: Context) {
         val manager = context.getSystemService(NotificationManager::class.java)
         if (manager.getNotificationChannel(CHANNEL_ID) != null) return
@@ -38,6 +49,22 @@ object RingingNotifications {
             setSound(null, null)
             enableVibration(false)
             lockscreenVisibility = NotificationCompat.VISIBILITY_PUBLIC
+        }
+        manager.createNotificationChannel(channel)
+    }
+
+    fun ensureSnoozedChannel(context: Context) {
+        val manager = context.getSystemService(NotificationManager::class.java)
+        if (manager.getNotificationChannel(SNOOZED_CHANNEL_ID) != null) return
+
+        val channel = NotificationChannel(
+            SNOOZED_CHANNEL_ID,
+            context.getString(R.string.alarm_snoozed_channel_name),
+            NotificationManager.IMPORTANCE_DEFAULT,
+        ).apply {
+            description = context.getString(R.string.alarm_snoozed_channel_description)
+            setSound(null, null)
+            enableVibration(false)
         }
         manager.createNotificationChannel(channel)
     }
@@ -72,10 +99,58 @@ object RingingNotifications {
             .build()
     }
 
+    /**
+     * Builds the "alarm snoozed" notification for [alarm].
+     *
+     * Not ongoing, unlike the ringing notification: swiping it away just hides
+     * it, since the snooze itself stays armed with `AlarmManager` (via
+     * `SnoozeRegistry`) independently of whether this notification is visible
+     * — an accidental swipe must never silently cancel the snooze the way an
+     * accidental tap must never dismiss a ringing alarm.
+     *
+     * @param dismissIntent triggers [RingingService]'s dismiss handling
+     *   directly, the same as the Ringing screen's own hold-to-dismiss gesture,
+     *   so the user isn't forced to wait for the alarm to ring again just to
+     *   turn it off.
+     * @param contentIntent what tapping the notification body (rather than the
+     *   Dismiss action) does — opens the app.
+     */
+    fun buildSnoozed(
+        context: Context,
+        alarm: Alarm,
+        snoozedUntil: Instant,
+        use24HourFormat: Boolean,
+        dismissIntent: PendingIntent,
+        contentIntent: PendingIntent?,
+    ): Notification {
+        ensureSnoozedChannel(context)
+        val untilLabel = snoozedUntil.atZone(ZoneId.systemDefault()).format(timeFormatter(use24HourFormat))
+        return NotificationCompat.Builder(context, SNOOZED_CHANNEL_ID)
+            .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
+            .setContentTitle(alarm.name.ifBlank { context.getString(R.string.alarm_default_name) })
+            .setContentText(context.getString(R.string.alarm_snoozed_text, untilLabel))
+            .setCategory(NotificationCompat.CATEGORY_ALARM)
+            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+            .setOngoing(false)
+            .setAutoCancel(true)
+            .setContentIntent(contentIntent)
+            .addAction(
+                NotificationCompat.Action.Builder(
+                    0,
+                    context.getString(R.string.alarm_snoozed_dismiss_action),
+                    dismissIntent,
+                ).build(),
+            )
+            .build()
+    }
+
     /** One notification per alarm, so two ringing close together don't collide. */
     fun notificationId(alarmId: Long): Int = alarmId.hashCode()
 
     fun cancel(context: Context, alarmId: Long) {
         NotificationManagerCompat.from(context).cancel(notificationId(alarmId))
     }
+
+    private fun timeFormatter(use24HourFormat: Boolean): DateTimeFormatter =
+        DateTimeFormatter.ofPattern(if (use24HourFormat) "HH:mm" else "h:mm a", Locale.getDefault())
 }

@@ -17,6 +17,11 @@ import java.time.Instant
  *
  * Which branch applies is decided by the exact period, not the rounded one, so
  * 59 min 59 s is still a minutes value — `"60 min"`, not `"1 h"`.
+ *
+ * ⚠ One deliberate deviation from that literal algorithm: when the minutes
+ * value itself would round to zero, this reads `"< 1 min"` rather than a bare
+ * `"0 min"` — a genuinely-imminent alarm reading "0 min" is easily misread as
+ * "no time left" rather than "seconds away".
  */
 object FuzzyCountdown {
 
@@ -24,14 +29,19 @@ object FuzzyCountdown {
     fun format(from: Instant, until: Instant): String =
         format(Duration.between(from, until))
 
-    /** Formats [duration]. A period that has already elapsed reads `"0 min"`. */
+    /** Formats [duration]. A period that has already elapsed reads `"< 1 min"`, same as an imminent one. */
     fun format(duration: Duration): String {
         val seconds = if (duration.isNegative) 0L else duration.seconds
         return when {
             seconds >= SECONDS_PER_DAY -> formatDays(seconds)
             seconds >= SECONDS_PER_HOUR -> "${round(seconds, SECONDS_PER_HOUR)} $HOURS"
-            else -> "${round(seconds, SECONDS_PER_MINUTE)} $MINUTES"
+            else -> formatMinutes(seconds)
         }
+    }
+
+    private fun formatMinutes(seconds: Long): String {
+        val minutes = round(seconds, SECONDS_PER_MINUTE)
+        return if (minutes == 0L) LESS_THAN_ONE_MINUTE else "$minutes $MINUTES"
     }
 
     private fun formatDays(seconds: Long): String {
@@ -57,4 +67,5 @@ object FuzzyCountdown {
     private const val DAYS = "d"
     private const val HOURS = "h"
     private const val MINUTES = "min"
+    private const val LESS_THAN_ONE_MINUTE = "< 1 min"
 }

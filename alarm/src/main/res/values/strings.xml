@@ -4,4 +4,8 @@
     <string name="alarm_channel_description">Rings when an alarm goes off.</string>
     <string name="alarm_default_name">Alarm</string>
     <string name="alarm_fired_text">Your alarm is ringing.</string>
+    <string name="alarm_snoozed_channel_name">Alarm snoozed</string>
+    <string name="alarm_snoozed_channel_description">Shows while an alarm is snoozed, with an option to dismiss it.</string>
+    <string name="alarm_snoozed_text">Snoozed until %1$s</string>
+    <string name="alarm_snoozed_dismiss_action">Dismiss</string>
 </resources>

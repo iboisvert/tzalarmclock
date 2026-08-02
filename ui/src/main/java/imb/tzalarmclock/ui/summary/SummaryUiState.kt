@@ -5,6 +5,7 @@ import imb.tzalarmclock.domain.model.Alarm
 import imb.tzalarmclock.domain.model.AppSettings
 import imb.tzalarmclock.domain.summary.AlarmGroup
 import imb.tzalarmclock.domain.summary.summarizeAlarms
+import java.time.Instant
 import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
 import java.util.Locale
@@ -37,14 +38,23 @@ data class SummaryEntryUi(
     val countdownLabel: String?,
 )
 
-/** Builds the Summary screen's state from the current alarms, settings and instant. */
+/**
+ * Builds the Summary screen's state from the current alarms, settings and
+ * instant.
+ *
+ * @param snoozedUntil currently-snoozed alarms and the instant they're
+ *   snoozed until (`RingingService.allSnoozedUntilMillis`), so a snoozed
+ *   alarm's displayed group/date/countdown matches what's actually armed
+ *   instead of its normally-computed next occurrence.
+ */
 fun buildSummaryUiState(
     alarms: List<Alarm>,
     settings: AppSettings,
     now: ZonedDateTime,
+    snoozedUntil: Map<Long, Instant> = emptyMap(),
 ): SummaryUiState {
     val timeFormatter = timeFormatter(settings.use24HourFormat)
-    val sections = summarizeAlarms(alarms, now).map { section ->
+    val sections = summarizeAlarms(alarms, now, snoozedUntil = snoozedUntil).map { section ->
         SummarySectionUi(
             group = section.group,
             entries = section.entries.map { entry ->

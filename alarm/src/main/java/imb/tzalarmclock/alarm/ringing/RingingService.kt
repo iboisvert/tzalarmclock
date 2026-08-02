@@ -138,12 +138,35 @@ class RingingService : Service() {
 
     private fun snooze(alarmId: Long) {
         stopRinging()
-        RingingNotifications.cancel(this, alarmId)
         scope.launch {
+            val alarmRepository = DataProvider.alarmRepository(this@RingingService)
             val settings = DataProvider.settingsRepository(this@RingingService).getSettings()
+            val alarm = alarmRepository.getAlarm(alarmId)
             val until = Instant.now().plus(settings.snoozePeriodMinutes.toLong(), ChronoUnit.MINUTES)
+
             SnoozeRegistry(this@RingingService).recordSnooze(alarmId, until.toEpochMilli())
             AlarmProvider.scheduler(this@RingingService).syncAll()
+
+            if (alarm != null) {
+                // Replaces the ringing notification in place, then STOP_FOREGROUND_DETACH
+                // below leaves it posted as a plain notification once this service
+                // stops, rather than letting the OS remove it along with the service.
+                NotificationManagerCompat.from(this@RingingService).notify(
+                    RingingNotifications.notificationId(alarmId),
+                    RingingNotifications.buildSnoozed(
+                        context = this@RingingService,
+                        alarm = alarm,
+                        snoozedUntil = until,
+                        use24HourFormat = settings.use24HourFormat,
+                        dismissIntent = dismissPendingIntent(alarmId),
+                        contentIntent = mainActivityPendingIntent(),
+                    ),
+                )
+                ServiceCompat.stopForeground(this@RingingService, ServiceCompat.STOP_FOREGROUND_DETACH)
+            } else {
+                RingingNotifications.cancel(this@RingingService, alarmId)
+                ServiceCompat.stopForeground(this@RingingService, ServiceCompat.STOP_FOREGROUND_REMOVE)
+            }
             stopSelf()
         }
     }
@@ -265,6 +288,26 @@ class RingingService : Service() {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
 
+    /** Fires this service's own dismiss handling directly from a notification action tap. */
+    private fun dismissPendingIntent(alarmId: Long): PendingIntent =
+        PendingIntent.getService(
+            this,
+            alarmId.hashCode(),
+            dismissIntent(this, alarmId),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
+
+    /** What tapping the snoozed notification's body (rather than its Dismiss action) does. */
+    private fun mainActivityPendingIntent(): PendingIntent? {
+        val launch = packageManager.getLaunchIntentForPackage(packageName) ?: return null
+        return PendingIntent.getActivity(
+            this,
+            OPEN_APP_REQUEST_CODE,
+            launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
+    }
+
     private fun Intent.putExtra(alarmId: Long): Intent = putExtra(EXTRA_ALARM_ID, alarmId)
 
     companion object {
@@ -281,6 +324,7 @@ class RingingService : Service() {
         private const val ESCALATION_DURATION_MILLIS = 75_000L
         private const val ESCALATION_STEP_MILLIS = 500L
         private const val MAX_RING_DURATION_MILLIS = 10 * 60 * 1000L
+        private const val OPEN_APP_REQUEST_CODE = 100
         private val VIBRATION_PATTERN = longArrayOf(0, 500, 500)
 
         fun ringIntent(context: Context, alarmId: Long): Intent =
@@ -294,5 +338,13 @@ class RingingService : Service() {
 
         /** How many times the current ring cycle for [alarmId] has been snoozed. */
         fun snoozeCount(context: Context, alarmId: Long): Int = SnoozeRegistry(context).snoozeCount(alarmId)
+
+        /**
+         * Every currently-snoozed alarm id and the instant it's snoozed until, in
+         * millis — the same registry [imb.tzalarmclock.alarm.schedule.AndroidAlarmScheduler]
+         * consults when arming, exposed so other snooze-aware displays (e.g. the
+         * Summary page) can match what's actually armed.
+         */
+        fun allSnoozedUntilMillis(context: Context): Map<Long, Long> = SnoozeRegistry(context).allSnoozedUntilMillis()
     }
 }

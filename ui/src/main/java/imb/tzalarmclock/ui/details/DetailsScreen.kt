@@ -18,13 +18,13 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DatePicker
-import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SegmentedButton
@@ -94,6 +94,10 @@ fun DetailsScreen(
         uiState = uiState,
         onBack = saveAndBack,
         onDelete = deleteAndBack,
+        // Deliberately the raw nav callback, not a ViewModel call: a new alarm
+        // was never saved, so "cancel" just means "leave" — the one case
+        // where back does *not* save, since there's nothing to autosave-away-from.
+        onCancel = onBack,
         onNameChanged = viewModel::onNameChanged,
         onTimeChanged = viewModel::onTimeChanged,
         onZoneChanged = viewModel::onZoneChanged,
@@ -112,6 +116,7 @@ private fun DetailsScreen(
     uiState: DetailsUiState,
     onBack: () -> Unit,
     onDelete: () -> Unit,
+    onCancel: () -> Unit,
     onNameChanged: (String) -> Unit,
     onTimeChanged: (LocalTime) -> Unit,
     onZoneChanged: (ZoneId?) -> Unit,
@@ -213,8 +218,14 @@ private fun DetailsScreen(
                 onVibrateChanged = onVibrateChanged,
             )
 
-            if (!uiState.isNew) {
-                HorizontalDivider()
+            HorizontalDivider()
+            if (uiState.isNew) {
+                // A new alarm was never saved, so there's nothing to confirm
+                // away from — unlike Delete, Cancel needs no confirmation dialog.
+                OutlinedButton(onClick = onCancel, modifier = Modifier.fillMaxWidth()) {
+                    Text("Cancel")
+                }
+            } else {
                 Button(
                     onClick = { showDeleteConfirm = true },
                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
@@ -378,17 +389,34 @@ private fun AlarmDatePickerDialog(
     val state = rememberDatePickerState(
         initialSelectedDateMillis = initialDate.atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli(),
     )
-    DatePickerDialog(
-        onDismissRequest = onDismiss,
-        confirmButton = {
-            TextButton(onClick = {
-                state.selectedDateMillis?.let { onConfirm(Instant.ofEpochMilli(it).atZone(ZoneOffset.UTC).toLocalDate()) }
-                onDismiss()
-            }) { Text("OK") }
-        },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
-    ) {
-        DatePicker(state = state)
+    // Hand-rolled rather than the built-in DatePickerDialog: that composable's
+    // internal Column isn't scrollable, so in a short/landscape viewport the
+    // calendar's later rows get clipped and overlap the Cancel/OK buttons
+    // instead of the dialog adapting — the same root-cause class as the
+    // time-picker fix above (a Material3 picker component fighting a dialog
+    // that doesn't give it the space it needs), just via a hand-rolled dialog
+    // since Material3 doesn't expose a scrollable DatePickerDialog to
+    // configure directly.
+    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        Surface(shape = MaterialTheme.shapes.extraLarge, tonalElevation = 6.dp) {
+            Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+                DatePicker(state = state)
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(end = 16.dp, bottom = 8.dp),
+                    horizontalArrangement = Arrangement.End,
+                ) {
+                    TextButton(onClick = onDismiss) { Text("Cancel") }
+                    TextButton(onClick = {
+                        state.selectedDateMillis?.let {
+                            onConfirm(Instant.ofEpochMilli(it).atZone(ZoneOffset.UTC).toLocalDate())
+                        }
+                        onDismiss()
+                    }) { Text("OK") }
+                }
+            }
+        }
     }
 }
 
@@ -405,6 +433,7 @@ private fun DetailsScreenNewPreview() {
             uiState = DetailsUiState(isLoading = false, time = LocalTime.of(7, 0)),
             onBack = {},
             onDelete = {},
+            onCancel = {},
             onNameChanged = {},
             onTimeChanged = {},
             onZoneChanged = {},
@@ -435,6 +464,7 @@ private fun DetailsScreenEditPreview() {
             ),
             onBack = {},
             onDelete = {},
+            onCancel = {},
             onNameChanged = {},
             onTimeChanged = {},
             onZoneChanged = {},

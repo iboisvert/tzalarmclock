@@ -20,7 +20,7 @@ class FuzzyCountdownTest {
 
     @Test
     fun `under an hour reads in minutes`() {
-        assertEquals("0 min", format())
+        assertEquals("< 1 min", format())
         assertEquals("1 min", format(minutes = 1))
         assertEquals("45 min", format(minutes = 45))
         assertEquals("59 min", format(minutes = 59))
@@ -28,7 +28,7 @@ class FuzzyCountdownTest {
 
     @Test
     fun `minutes round half to even`() {
-        assertEquals("0 min", format(seconds = 30))
+        assertEquals("< 1 min", format(seconds = 30))
         assertEquals("2 min", format(minutes = 1, seconds = 30))
         assertEquals("2 min", format(minutes = 2, seconds = 30))
         assertEquals("4 min", format(minutes = 3, seconds = 30))
@@ -89,9 +89,15 @@ class FuzzyCountdownTest {
     }
 
     @Test
-    fun `a period that has already elapsed reads as zero`() {
-        assertEquals("0 min", FuzzyCountdown.format(Duration.ofMinutes(-5)))
-        assertEquals("0 min", FuzzyCountdown.format(Duration.ofDays(-2)))
+    fun `a period that has already elapsed reads as less than a minute`() {
+        assertEquals("< 1 min", FuzzyCountdown.format(Duration.ofMinutes(-5)))
+        assertEquals("< 1 min", FuzzyCountdown.format(Duration.ofDays(-2)))
+    }
+
+    @Test
+    fun `an imminent alarm reads as less than a minute, not zero`() {
+        assertEquals("< 1 min", format(seconds = 1))
+        assertEquals("< 1 min", format(seconds = 29))
     }
 
     @Test

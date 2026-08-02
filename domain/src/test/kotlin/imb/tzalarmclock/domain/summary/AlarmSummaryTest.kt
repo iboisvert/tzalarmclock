@@ -236,6 +236,41 @@ class AlarmSummaryTest {
         )
     }
 
+    // -- Snoozed alarms -------------------------------------------------------
+
+    @Test
+    fun `a snoozed alarm groups and counts down by its snoozed instant, not its normal schedule`() {
+        // 07:00 has already passed today, so the un-snoozed occurrence would be tomorrow.
+        val snoozed = alarm(name = "Snoozed", at = LocalTime.of(7, 0))
+        val snoozedUntil = now.toInstant().plusSeconds(600)
+
+        val sections = summarizeAlarms(listOf(snoozed), now, DayOfWeek.MONDAY, mapOf(1L to snoozedUntil))
+
+        assertEquals(AlarmGroup.TODAY, sections.single().group)
+        assertEquals(snoozedUntil, sections.single().entries.single().nextOccurrence?.toInstant())
+    }
+
+    @Test
+    fun `a stale snoozed instant already in the past falls back to the normal schedule`() {
+        val alarm = alarm(name = "Stale snooze", at = LocalTime.of(7, 0))
+        val staleSnooze = now.toInstant().minusSeconds(60)
+
+        val sections = summarizeAlarms(listOf(alarm), now, DayOfWeek.MONDAY, mapOf(1L to staleSnooze))
+
+        // 07:00 already passed today, so the normal next occurrence is tomorrow.
+        assertEquals(AlarmGroup.TOMORROW, sections.single().group)
+    }
+
+    @Test
+    fun `a snooze entry for a different alarm doesn't affect this one`() {
+        val alarm = alarm(name = "Not snoozed", at = LocalTime.of(7, 0))
+        val snoozedUntil = now.toInstant().plusSeconds(600)
+
+        val sections = summarizeAlarms(listOf(alarm), now, DayOfWeek.MONDAY, mapOf(2L to snoozedUntil))
+
+        assertEquals(AlarmGroup.TOMORROW, sections.single().group)
+    }
+
     private fun summarizeInParis(vararg alarms: Alarm) =
         summarizeAlarms(alarms.toList(), now.withZoneSameInstant(paris), DayOfWeek.MONDAY)
 
@@ -251,5 +286,6 @@ class AlarmSummaryTest {
         zone: ZoneId? = null,
         on: AlarmSchedule = AlarmSchedule.NextOccurrence,
         enabled: Boolean = true,
-    ) = Alarm(name = name, time = at, zone = zone, schedule = on, enabled = enabled)
+        id: Long = 1L,
+    ) = Alarm(id = id, name = name, time = at, zone = zone, schedule = on, enabled = enabled)
 }

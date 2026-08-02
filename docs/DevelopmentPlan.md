@@ -367,10 +367,44 @@ already-known-broken behavior.
   `usePlatformDefaultWidth`/add a proper scrollable, height-capped
   container) so the calendar actually fits the landscape viewport instead
   of overflowing it.
+- **New task: notify when an alarm is snoozed, with an in-notification
+  Dismiss action.** Today `RingingService.snooze()` (Stage 6) just cancels
+  the ringing notification and re-arms silently — there's no ongoing
+  indication that an alarm is snoozed and pending, and no way to cancel a
+  pending snooze without waiting for it to ring again. Add a notification
+  (e.g. "Alarm snoozed until 07:10") posted when the snooze starts, replacing
+  the ringing notification rather than stacking alongside it, carrying a
+  `Dismiss` action button wired to the same `RingingService.dismissIntent`
+  the Ringing screen's own hold-to-dismiss gesture uses — tapping it should
+  disable a non-recurring alarm (or leave a recurring one armed) and clear
+  the snooze exactly like dismissing from the Ringing screen, without
+  needing to relaunch that screen. The notification is cancelled once the
+  snooze resolves (the alarm fires again) or is dismissed directly from it.
+- **New task: a Cancel button for a new alarm on the Details page.** Stage 5's
+  back-button-always-saves semantics (per spec, for *editing*) also apply to
+  *creating* a new alarm, so there is currently no way to back out of the "+"
+  flow without it being saved anyway — the Delete button (which only shows
+  for `!isNew`) doesn't help here either, since there's nothing to delete yet.
+  Add a Cancel button in the same location the Delete button occupies when
+  editing (bottom of the form), shown only when `isNew`, that discards the
+  in-progress form and navigates back *without* saving — the one exception to
+  the autosave-on-back rule, scoped specifically to a not-yet-saved alarm.
+- **New task: `FuzzyCountdown`'s "0 min" reads `"< 1 min"` instead.** ⚠ A
+  deliberate deviation from Stage 2's literal spec algorithm (which rounds to
+  a bare `"N min"` with no zero special-case): rounding a sub-30-second
+  remainder down to `"0 min"` reads as "no time left" / "should be ringing
+  now" on the Summary page, when the alarm is in fact still up to ~30 seconds
+  from firing. `"< 1 min"` isn't misleading either way it can arise — a
+  genuine near-future countdown that rounds to zero, or the already-elapsed
+  case the formatter also clamps to zero.
 
 **Exit criteria:** both known issues above are resolved and verified (in
-both portrait and landscape for the date/time pickers), with no regressions
-in the existing test suite.
+both portrait and landscape for the date/time pickers); snoozing an alarm
+posts a notification with a working Dismiss action that matches the Ringing
+screen's own dismiss behavior; creating a new alarm and tapping Cancel
+returns to the Summary page without adding a row; an alarm due in under a
+minute reads `"< 1 min"` rather than `"0 min"`; no regressions in the
+existing test suite.
 
 ---
 
@@ -518,3 +552,6 @@ Consolidated list of the ⚠ items above, for quick review/sign-off:
 20. An alarm with no future occurrence is disabled at the moment it fires
     (Stage 3) rather than at dismiss (Stage 6), so a time-only alarm can't
     re-arm itself indefinitely.
+21. `FuzzyCountdown` reads `"< 1 min"` rather than a literal `"0 min"` when
+    the remainder rounds to zero (Stage 8), deviating from Stage 2's literal
+    spec algorithm since "0 min" reads as no time left rather than imminent.

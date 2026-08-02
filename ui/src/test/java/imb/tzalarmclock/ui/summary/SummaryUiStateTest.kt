@@ -82,4 +82,18 @@ class SummaryUiStateTest {
 
         assertEquals("", entry.name)
     }
+
+    @Test
+    fun `a snoozed alarm's date and countdown reflect the snoozed instant, not its normal schedule`() {
+        // 06:00 has already passed today, so the un-snoozed occurrence would be tomorrow.
+        val alarm = Alarm(id = 1, name = "Wake", time = LocalTime.of(6, 0))
+        val snoozedUntil = now.toInstant().plusSeconds(600)
+
+        val entry = buildSummaryUiState(listOf(alarm), AppSettings.DEFAULTS, now, mapOf(1L to snoozedUntil))
+            .sections.single { it.group == AlarmGroup.TODAY }
+            .entries.single()
+
+        assertEquals("Jul 27", entry.nextRingDateLabel)
+        assertEquals("10 min", entry.countdownLabel)
+    }
 }

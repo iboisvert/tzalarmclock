@@ -3,6 +3,7 @@ package imb.tzalarmclock.domain.summary
 import imb.tzalarmclock.domain.model.Alarm
 import imb.tzalarmclock.domain.schedule.nextOccurrenceAfter
 import java.time.DayOfWeek
+import java.time.Instant
 import java.time.LocalTime
 import java.time.ZonedDateTime
 import java.time.temporal.TemporalAdjusters
@@ -60,11 +61,18 @@ data class AlarmSummarySection(
  * @param now the current instant, carrying the device's zone.
  * @param firstDayOfWeek which day the calendar week starts on; defaults to the
  *   device locale's.
+ * @param snoozedUntil alarms currently snoozed, and the instant they're
+ *   snoozed until — used as that alarm's next-ring instant instead of its
+ *   normally-computed next occurrence, so a snoozed alarm's displayed
+ *   group/date/countdown matches what's actually armed with `AlarmManager`
+ *   (see `AndroidAlarmScheduler`'s arming plan, which honours the same
+ *   registry). Entries already in the past are ignored, same as there.
  */
 fun summarizeAlarms(
     alarms: List<Alarm>,
     now: ZonedDateTime,
     firstDayOfWeek: DayOfWeek = WeekFields.of(Locale.getDefault()).firstDayOfWeek,
+    snoozedUntil: Map<Long, Instant> = emptyMap(),
 ): List<AlarmSummarySection> {
     val today = now.toLocalDate()
     val tomorrow = today.plusDays(1)
@@ -75,7 +83,8 @@ fun summarizeAlarms(
     val entries = alarms.map { alarm ->
         // Computed for disabled alarms too: it is what renders their time in the
         // device's zone, even though their countdown is withheld.
-        val occurrence = alarm.nextOccurrenceAfter(now)
+        val snoozed = snoozedUntil[alarm.id]?.takeIf { it.isAfter(now.toInstant()) }
+        val occurrence = snoozed?.atZone(now.zone) ?: alarm.nextOccurrenceAfter(now)
         AlarmSummaryEntry(
             alarm = alarm,
             localTime = occurrence?.toLocalTime() ?: alarm.time,
