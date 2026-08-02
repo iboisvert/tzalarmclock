@@ -47,6 +47,39 @@ without genuinely playing audio, so it's confirmed live below.
 - [x] Full-screen Ringing UI over the lock screen under DND: confirmed in
       the Total Silence case above (screenshot taken with DND active).
 
+### Vibration
+
+`RingingService.startVibration` uses `VibrationAttributes.USAGE_ALARM`
+(API 33+) / `AudioAttributes.USAGE_ALARM` (below) — the vibration analogue of
+the audio bypass above, and a separate subsystem in Android's ringer-mode
+handling, so it needs its own live check rather than assuming it tracks the
+audio result.
+
+- [x] Default settings (vibration on), normal ringer mode: confirmed live on
+      the Motorola, 2026-08-02. **First attempt: no vibration** — not an app
+      bug. `dumpsys vibrator_manager` showed `VibrationIntensities: ALARM =
+      OFF` (vs. `RINGTONE`/`NOTIFICATION` = `MEDIUM`), and `adb shell
+      settings list system | grep vibrat` confirmed
+      `alarm_vibration_intensity=0` — a system-level "Alarms" vibration
+      setting (Settings → Sound & vibration → Vibration & haptics) that
+      silences vibration for *every* alarm app on the device, independent
+      of DND. Same category of gotcha as the exact-alarm-permission and
+      battery-optimization cases: an OS setting the app can't see or warn
+      about via public API. Raised it to `MEDIUM`
+      (`settings put system alarm_vibration_intensity 2`) and re-armed —
+      vibrated correctly. User chose to leave the device at `MEDIUM`
+      afterward rather than restoring `OFF`, since it silently affects
+      every alarm app, not just this one.
+- [x] **Total silence**: confirmed live — no vibration, consistent with the
+      audio result. Total Silence suppresses vibration too, not just
+      `STREAM_ALARM`.
+- [x] Plain **Silent** ringer mode (not DND): confirmed live — vibrated
+      correctly, matching the audio result for this case.
+- [x] Vibration explicitly set to **Off** for the alarm: confirmed live —
+      correctly did not vibrate (normal ringer mode, DND off,
+      `alarm_vibration_intensity=MEDIUM`), proving the app's own setting is
+      actually honoured and not just always-on.
+
 ## 2. Restart / kill / update / battery-optimization survival
 
 Stage 3 already signed off cases (a)-(d) of this matrix on the user's real
