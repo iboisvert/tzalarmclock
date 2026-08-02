@@ -37,17 +37,20 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
 
-      # Compiles every module (app, domain, data, alarm, ui). Does not touch
-      # androidTest sources or require a device/emulator.
+      # Compiles every module (app, domain, data, alarm, ui) with R8
+      # minification/shrinking on (Stage 10), so keep-rule regressions surface
+      # here instead of after release. Does not touch androidTest sources or
+      # require a device/emulator.
       - name: Build
-        run: ./gradlew assembleDebug --stacktrace --no-daemon
+        run: ./gradlew assembleRelease --stacktrace --no-daemon
 
-      # testDebugUnitTest covers the Android library/app modules; :domain:test
-      # is targeted explicitly because domain is a plain Kotlin/JVM module
-      # whose unit test task is just "test", not "testDebugUnitTest". Neither
-      # touches androidTest (instrumented) sources, so no emulator is needed.
+      # testReleaseUnitTest covers the Android library/app modules against the
+      # same release/R8 variant assembled above; :domain:test is targeted
+      # explicitly because domain is a plain Kotlin/JVM module with no build
+      # types, so its unit test task is just "test". Neither touches
+      # androidTest (instrumented) sources, so no emulator is needed.
       - name: Unit test
-        run: ./gradlew testDebugUnitTest :domain:test --stacktrace --no-daemon
+        run: ./gradlew testReleaseUnitTest :domain:test --stacktrace --no-daemon
 
       - name: Upload unit test reports
         if: always()
