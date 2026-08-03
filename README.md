@@ -13,16 +13,19 @@ given wall-clock time in whatever zone the device is currently in) or
 
 ## Status
 
-In progress. Stages 0–3 of `docs/DevelopmentPlan.md` are done: the module
-skeleton, alarm/settings persistence, the recurrence and next-occurrence
-engine, and OS scheduling — alarms are armed with `AlarmManager`, re-armed
-after a reboot or an app update, and re-evaluated whenever the device's time
-zone changes. The four screens are still Stage 0 placeholders, so there is no
-way to create an alarm from the UI yet; that arrives with Stages 4–5.
+In progress. Stages 0–10 of `docs/DevelopmentPlan.md` are done: the app is
+fully functional end to end — create/edit/delete alarms, the live Summary
+list, the full-screen Ringing page with snooze/dismiss, and the Settings
+page all work, backed by real OS scheduling (alarms are armed with
+`AlarmManager`, re-armed after a reboot or app update, and re-evaluated
+whenever the device's time zone changes). Release builds run with R8
+minification on, and CI exercises that variant. Only Stage 11 (polish and
+release readiness) remains before the plan is complete.
 
-Stage 3's exit criteria are only partly verifiable on an emulator — reboot,
-force-stop, and OEM battery-optimisation behaviour need a real device. See
-`docs/Stage3ManualTests.md` for the checklist.
+Reboot, force-stop, DND/silent bypass, and OEM battery-optimisation behaviour
+aren't fully verifiable on an emulator — see `docs/Stage3ManualTests.md` and
+`docs/Stage9ManualTests.md` for the real-device checklists these were signed
+off against.
 
 ## Features
 
@@ -62,7 +65,7 @@ independently tested requirements (see Stage 9 of the development plan):
   that reliably fires through Doze and surfaces as a visible system alarm.
 - Full-screen-intent notification + foreground service for the ringing page,
   so it can appear over the lock screen and bypass DND.
-- Target API level 31. Root package: `imb.tzalarmclock`.
+- Minimum API level 31, target 35. Root package: `imb.tzalarmclock`.
 
 Rationale for these choices, and the alternatives considered, are in
 `docs/DevelopmentPlan.md`.
@@ -77,6 +80,11 @@ Rationale for these choices, and the alternatives considered, are in
   cases, week-grouping boundaries, dismiss/snooze interaction model, etc.),
   each logged explicitly so they can be reviewed rather than discovered
   later.
+- [`docs/Stage3ManualTests.md`](docs/Stage3ManualTests.md) and
+  [`docs/Stage9ManualTests.md`](docs/Stage9ManualTests.md) — real-device
+  checklists for the behaviour an emulator can't verify: reboot/force-stop
+  survival, time-zone-change reactivity, and DND/silent/battery-optimisation
+  bypass.
 
 Phase 2 work (per-day recurrence times, public-holiday skipping, recurrence
 end dates, pre-alarm screen brightness ramp) is intentionally out of scope
