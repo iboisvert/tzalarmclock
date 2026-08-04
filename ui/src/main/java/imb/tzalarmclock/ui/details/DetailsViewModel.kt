@@ -20,11 +20,19 @@ import kotlinx.coroutines.launch
 /**
  * Backs the Details screen with an editable [DetailsUiState].
  *
- * [save] and [delete] are `suspend` rather than fire-and-forget: the screen
- * calls them from a composition-scoped coroutine (not [viewModelScope]) and
- * waits for them to finish before navigating away, so the spec's "back button
- * saves changes" holds even though this ViewModel is torn down as soon as its
- * destination leaves the back stack.
+ * Edits are a draft held only in [uiState] — nothing touches [alarmRepository]
+ * until [add] (new alarm) or [saveEdit] (existing alarm) is called. This is a
+ * deliberate deviation from the spec's "back button always saves" (see the
+ * development plan's Stage 11 / assumption #22): the screen now shows an
+ * explicit Add/Cancel or Cancel/Delete button row, with Android back remapped
+ * to behave like Cancel, and an exit-confirmation dialog whenever the form is
+ * [isDirty].
+ *
+ * [add], [saveEdit] and [delete] are `suspend` rather than fire-and-forget:
+ * the screen calls them from a composition-scoped coroutine (not
+ * [viewModelScope]) and waits for them to finish before navigating away,
+ * since this ViewModel is torn down as soon as its destination leaves the
+ * back stack.
  *
  * No explicit call into [imb.tzalarmclock.alarm.AlarmProvider]'s scheduler is
  * needed here, for the same reason [imb.tzalarmclock.ui.summary.SummaryViewModel]
@@ -42,6 +50,9 @@ class DetailsViewModel(application: Application) : AndroidViewModel(application)
 
     private var hasStartedLoad = false
 
+    /** The alarm as loaded (or, for a new one, its seeded default) — [isDirty]'s comparison point. */
+    private var originalAlarm: Alarm? = null
+
     /** Loads the alarm to edit, or seeds a brand-new one when [alarmId] is `null`. Idempotent. */
     fun load(alarmId: Long?) {
         if (hasStartedLoad) return
@@ -49,6 +60,7 @@ class DetailsViewModel(application: Application) : AndroidViewModel(application)
         viewModelScope.launch {
             val settings = settingsRepository.getSettings()
             val alarm = alarmId?.let { alarmRepository.getAlarm(it) } ?: Alarm(time = LocalTime.now())
+            originalAlarm = alarm
             _uiState.value = buildDetailsUiState(alarm, settings, LocalDate.now())
         }
     }
@@ -63,10 +75,23 @@ class DetailsViewModel(application: Application) : AndroidViewModel(application)
     fun onRingtoneChanged(uri: String?) = update { it.copy(ringtoneUri = uri) }
     fun onVibrateChanged(vibrate: Boolean?) = update { it.copy(vibrate = vibrate) }
 
-    /** No-ops if [load] never finished, so an early back-press can't persist a blank alarm. */
-    suspend fun save() {
+    /** True once the current draft differs from [originalAlarm] — the exit-dialog trigger. */
+    fun isDirty(): Boolean {
         val state = _uiState.value
-        if (state.isLoading) return
+        return !state.isLoading && state.toAlarm() != originalAlarm
+    }
+
+    /** Persists a brand-new alarm. No-ops if [load] never finished or this isn't a new alarm. */
+    suspend fun add() {
+        val state = _uiState.value
+        if (state.isLoading || !state.isNew) return
+        alarmRepository.save(state.toAlarm())
+    }
+
+    /** Persists an edit to an existing alarm. No-ops for a new alarm or before [load] finishes. */
+    suspend fun saveEdit() {
+        val state = _uiState.value
+        if (state.isLoading || state.isNew) return
         alarmRepository.save(state.toAlarm())
     }
 

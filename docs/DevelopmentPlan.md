@@ -483,19 +483,29 @@ deliberately replaces that behavior:
   **Add** and **Cancel**. Add explicitly saves the new alarm — superseding
   both Stage 5's implicit autosave-on-back and Stage 8's Cancel-only cutout
   for new alarms. Cancel discards the in-progress form without creating
-  anything.
+  anything. Edits stay in the ViewModel's local `DetailsUiState` only —
+  nothing touches the repository until Add is tapped, same as today.
 - **Editing an existing alarm**: the button row shows **Cancel** and
   **Delete**, replacing Stage 5's "Delete" + implicit autosave-on-back.
-  There is no explicit Save button for edits: Cancel reverts any changes
-  made since the page was opened back to the last-saved state; Delete
-  removes the alarm outright (keeping Stage 5's existing confirmation step).
+  There is no page-level Save button; edits also stay purely local (the
+  repository is untouched while editing), same draft-in-memory model as
+  creating a new alarm. Delete removes the alarm outright (keeping Stage 5's
+  existing confirmation step).
 - The Android system back button is remapped to behave exactly like Cancel
-  in both cases — it no longer saves.
-- **Discard-changes confirmation**: Cancel (whether tapped or triggered via
-  back) prompts the user to confirm discarding only when the form is
-  actually dirty relative to the snapshot taken when the page was opened (or
-  last saved). An unmodified form's Cancel/back navigates straight back, no
-  prompt.
+  in both cases — it no longer saves unconditionally.
+- **Exit-confirmation dialogs**, shown only when the form is actually dirty
+  relative to the snapshot taken when the page was opened (an unmodified
+  form's Cancel/back navigates straight back, no dialog):
+  - **New alarm**: a 2-way *"Discard changes?"* dialog — **Discard** leaves
+    without creating anything; **Keep Editing** dismisses and stays. Add
+    remains the only way to persist a new alarm, so the dialog doesn't need
+    a save option of its own.
+  - **Existing alarm**: since editing has no page-level Save button, the
+    save action lives in the exit dialog itself — a 3-way *"Save changes
+    before leaving?"* dialog: **Save** persists the current draft (`Alarm
+    Repository.save`) and leaves; **Discard** leaves with the repository
+    untouched (still holding the pre-edit alarm); **Keep Editing** dismisses
+    and stays, changes still only in memory.
 - Supersedes assumption #10 (see the amended entry in the Assumptions log)
   and folds Stage 8's `isNew`-only Cancel button into a single Cancel
   affordance shared by create and edit.
@@ -528,15 +538,17 @@ row gains a label describing its pattern:
   literal examples given.
 
 **Exit criteria:** creating a new alarm and tapping Add saves it and returns
-to Summary; tapping Cancel (button or back) on a dirty new-alarm form
-prompts, and on confirm discards it with no row added; editing an alarm,
-changing a field, and tapping Cancel (button or back) prompts, and on
-confirm reverts to the pre-edit alarm with no changes persisted; editing
-without changing anything and pressing back/Cancel returns immediately with
-no prompt; Delete continues to require its existing confirmation step; a
-weekly alarm on Mon/Wed/Fri shows `"Weekly M, W, F"` on the Summary page and
-a monthly alarm on the 1st/15th shows `"Monthly 1, 15"`; non-recurring alarms
-show no recurrence label.
+to Summary; tapping Cancel (button or back) on a dirty new-alarm form shows
+*"Discard changes?"*, and Discard leaves with no row added while Keep Editing
+stays; editing an alarm, changing a field, and tapping Cancel (button or
+back) shows *"Save changes before leaving?"* — Save persists the edit and
+returns to Summary showing the new values, Discard returns to Summary with
+the alarm unchanged, Keep Editing stays on the page with the edit still
+present; editing without changing anything and pressing back/Cancel returns
+immediately with no dialog; Delete continues to require its existing
+confirmation step; a weekly alarm on Mon/Wed/Fri shows `"Weekly M, W, F"` on
+the Summary page and a monthly alarm on the 1st/15th shows `"Monthly 1, 15"`;
+non-recurring alarms show no recurrence label.
 
 ---
 
@@ -635,8 +647,14 @@ Consolidated list of the ⚠ items above, for quick review/sign-off:
     resolution: `Requirements.md:70-71` says the Android back button always
     saves changes on the Details page. Stage 11 instead gives new alarms
     explicit **Add**/**Cancel** buttons and existing alarms **Cancel**/
-    **Delete** buttons, remaps system back to behave like Cancel, and prompts
-    to discard changes on Cancel/back only when the form is dirty.
+    **Delete** buttons (no page-level Save), remaps system back to behave
+    like Cancel, and shows an exit-confirmation dialog only when the form is
+    dirty: 2-way *"Discard changes?"* for a new alarm (Add is the only save
+    path), 3-way *"Save changes before leaving?"* (Save/Discard/Keep
+    Editing) for an existing one, since editing has no other way to persist
+    a change — resolved with the user via `AskUserQuestion` on 2026-08-04
+    after the plan's earlier "Cancel reverts to last-saved state" draft
+    turned out to have no path to actually keep an edit.
 23. Summary page recurrence label (Stage 11, an addition, not a spec
     deviation — the spec's field list has no such label): weekly reads
     `"Weekly "` + narrow single-letter day abbreviations in Mon-first

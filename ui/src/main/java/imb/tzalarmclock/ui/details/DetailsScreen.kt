@@ -78,9 +78,15 @@ fun DetailsScreen(
     LaunchedEffect(alarmId) { viewModel.load(alarmId) }
     val uiState by viewModel.uiState.collectAsState()
     val scope = rememberCoroutineScope()
-    val saveAndBack: () -> Unit = {
+    val addAndBack: () -> Unit = {
         scope.launch {
-            viewModel.save()
+            viewModel.add()
+            onBack()
+        }
+    }
+    val saveEditAndBack: () -> Unit = {
+        scope.launch {
+            viewModel.saveEdit()
             onBack()
         }
     }
@@ -92,12 +98,12 @@ fun DetailsScreen(
     }
     DetailsScreen(
         uiState = uiState,
-        onBack = saveAndBack,
+        isDirty = viewModel::isDirty,
+        // The draft never touched the repository, so discarding is just navigation.
+        onDiscard = onBack,
+        onAdd = addAndBack,
+        onSaveEdit = saveEditAndBack,
         onDelete = deleteAndBack,
-        // Deliberately the raw nav callback, not a ViewModel call: a new alarm
-        // was never saved, so "cancel" just means "leave" — the one case
-        // where back does *not* save, since there's nothing to autosave-away-from.
-        onCancel = onBack,
         onNameChanged = viewModel::onNameChanged,
         onTimeChanged = viewModel::onTimeChanged,
         onZoneChanged = viewModel::onZoneChanged,
@@ -114,9 +120,11 @@ fun DetailsScreen(
 @Composable
 private fun DetailsScreen(
     uiState: DetailsUiState,
-    onBack: () -> Unit,
+    isDirty: () -> Boolean,
+    onDiscard: () -> Unit,
+    onAdd: () -> Unit,
+    onSaveEdit: () -> Unit,
     onDelete: () -> Unit,
-    onCancel: () -> Unit,
     onNameChanged: (String) -> Unit,
     onTimeChanged: (LocalTime) -> Unit,
     onZoneChanged: (ZoneId?) -> Unit,
@@ -128,12 +136,18 @@ private fun DetailsScreen(
     onVibrateChanged: (Boolean?) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    BackHandler(onBack = onBack)
-
     var showTimePicker by remember { mutableStateOf(false) }
     var showDatePicker by remember { mutableStateOf(false) }
     var showZonePicker by remember { mutableStateOf(false) }
     var showDeleteConfirm by remember { mutableStateOf(false) }
+    var showExitDialog by remember { mutableStateOf(false) }
+
+    // The back button (system or in-app) behaves like Cancel: it only leaves
+    // straight away when the form is clean, otherwise it asks first — never
+    // an unconditional save, unlike the spec's literal back-always-saves text.
+    val requestLeave: () -> Unit = { if (isDirty()) showExitDialog = true else onDiscard() }
+
+    BackHandler(onBack = requestLeave)
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
@@ -141,7 +155,7 @@ private fun DetailsScreen(
             TopAppBar(
                 title = { Text(if (uiState.isNew) "New Alarm" else "Edit Alarm") },
                 navigationIcon = {
-                    IconButton(onClick = onBack) {
+                    IconButton(onClick = requestLeave) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                     }
                 },
@@ -219,19 +233,25 @@ private fun DetailsScreen(
             )
 
             HorizontalDivider()
-            if (uiState.isNew) {
-                // A new alarm was never saved, so there's nothing to confirm
-                // away from — unlike Delete, Cancel needs no confirmation dialog.
-                OutlinedButton(onClick = onCancel, modifier = Modifier.fillMaxWidth()) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                OutlinedButton(onClick = requestLeave, modifier = Modifier.weight(1f)) {
                     Text("Cancel")
                 }
-            } else {
-                Button(
-                    onClick = { showDeleteConfirm = true },
-                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    Text("Delete Alarm")
+                if (uiState.isNew) {
+                    Button(onClick = onAdd, modifier = Modifier.weight(1f)) {
+                        Text("Add")
+                    }
+                } else {
+                    Button(
+                        onClick = { showDeleteConfirm = true },
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
+                        modifier = Modifier.weight(1f),
+                    ) {
+                        Text("Delete Alarm")
+                    }
                 }
             }
         }
@@ -279,6 +299,41 @@ private fun DetailsScreen(
                 TextButton(onClick = { showDeleteConfirm = false }) { Text("Cancel") }
             },
         )
+    }
+    if (showExitDialog) {
+        if (uiState.isNew) {
+            // Add is the only way to persist a new alarm, so this dialog has
+            // no save option of its own — just leave-and-lose-it, or stay.
+            AlertDialog(
+                onDismissRequest = { showExitDialog = false },
+                title = { Text("Discard changes?") },
+                text = { Text("This alarm hasn't been added yet.") },
+                confirmButton = {
+                    TextButton(onClick = { showExitDialog = false; onDiscard() }) { Text("Discard") }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showExitDialog = false }) { Text("Keep Editing") }
+                },
+            )
+        } else {
+            // Editing has no page-level Save button, so the save action lives
+            // here: this is the only place an edit to an existing alarm can
+            // actually be persisted.
+            AlertDialog(
+                onDismissRequest = { showExitDialog = false },
+                title = { Text("Save changes before leaving?") },
+                text = { Text("You've made changes to this alarm.") },
+                confirmButton = {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        TextButton(onClick = { showExitDialog = false; onDiscard() }) { Text("Discard") }
+                        TextButton(onClick = { showExitDialog = false; onSaveEdit() }) { Text("Save") }
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showExitDialog = false }) { Text("Keep Editing") }
+                },
+            )
+        }
     }
 }
 
@@ -431,9 +486,11 @@ private fun DetailsScreenNewPreview() {
     TzAlarmClockTheme {
         DetailsScreen(
             uiState = DetailsUiState(isLoading = false, time = LocalTime.of(7, 0)),
-            onBack = {},
+            isDirty = { false },
+            onDiscard = {},
+            onAdd = {},
+            onSaveEdit = {},
             onDelete = {},
-            onCancel = {},
             onNameChanged = {},
             onTimeChanged = {},
             onZoneChanged = {},
@@ -462,9 +519,11 @@ private fun DetailsScreenEditPreview() {
                 scheduleType = ScheduleType.WEEKLY,
                 weekdays = setOf(DayOfWeek.MONDAY, DayOfWeek.WEDNESDAY, DayOfWeek.FRIDAY),
             ),
-            onBack = {},
+            isDirty = { false },
+            onDiscard = {},
+            onAdd = {},
+            onSaveEdit = {},
             onDelete = {},
-            onCancel = {},
             onNameChanged = {},
             onTimeChanged = {},
             onZoneChanged = {},
