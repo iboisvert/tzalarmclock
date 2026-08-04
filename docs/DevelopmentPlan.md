@@ -518,20 +518,15 @@ row gains a label describing its pattern:
 
 - **Weekly**: `"Weekly "` followed by the alarm's selected days, in calendar
   order starting Monday (not the device locale's first-day-of-week, so the
-  label reads the same everywhere), comma-separated, e.g. an alarm on
-  Monday/Wednesday/Friday reads `"Weekly M, W, F"`.
+  label reads the same everywhere), comma-separated, using the Android SDK's
+  short `DayOfWeek` display name (`TextStyle.SHORT`, e.g. "Mon", "Tue") rather
+  than a single letter, e.g. an alarm on Monday/Wednesday/Friday reads
+  `"Weekly Mon, Wed, Fri"`.
 - **Monthly**: `"Monthly "` followed by the alarm's selected days-of-month,
   in ascending numeric order, comma-separated, e.g. an alarm on the 1st and
   15th reads `"Monthly 1, 15"`.
 - One-time and next-occurrence (non-recurring) alarms get no recurrence
   label, same as today.
-- ⚠ *Day abbreviations collide*: single-letter weekday abbreviations
-  (`DayOfWeek.getDisplayName(TextStyle.NARROW, …)`, matching the "M, W, F"
-  example) are not unique in English — Tuesday/Thursday both narrow to "T",
-  Saturday/Sunday both narrow to "S". Shipping the single-letter form as
-  specified anyway, since it matches the literal example given and
-  disambiguating (e.g. "Tu"/"Th", "Sa"/"Su") wasn't requested; revisit if
-  this proves confusing in practice.
 - ⚠ *Locale scope*: unlike the countdown labels' explicit "locale-independent"
   requirement (spec line 53), nothing says whether the recurrence label
   should localize. Treated as English-only for now, consistent with the
@@ -546,9 +541,9 @@ returns to Summary showing the new values, Discard returns to Summary with
 the alarm unchanged, Keep Editing stays on the page with the edit still
 present; editing without changing anything and pressing back/Cancel returns
 immediately with no dialog; Delete continues to require its existing
-confirmation step; a weekly alarm on Mon/Wed/Fri shows `"Weekly M, W, F"` on
-the Summary page and a monthly alarm on the 1st/15th shows `"Monthly 1, 15"`;
-non-recurring alarms show no recurrence label.
+confirmation step; a weekly alarm on Mon/Wed/Fri shows `"Weekly Mon, Wed,
+Fri"` on the Summary page and a monthly alarm on the 1st/15th shows
+`"Monthly 1, 15"`; non-recurring alarms show no recurrence label.
 
 ---
 
@@ -657,10 +652,10 @@ Consolidated list of the ⚠ items above, for quick review/sign-off:
     turned out to have no path to actually keep an edit.
 23. Summary page recurrence label (Stage 11, an addition, not a spec
     deviation — the spec's field list has no such label): weekly reads
-    `"Weekly "` + narrow single-letter day abbreviations in Mon-first
-    calendar order (e.g. `"Weekly M, W, F"`); monthly reads `"Monthly "` +
-    ascending days-of-month (e.g. `"Monthly 1, 15"`). Single-letter weekday
-    abbreviations collide (Tue/Thu both "T", Sat/Sun both "S") but are used
-    anyway to match the literal example given; the label is treated as
+    `"Weekly "` + the Android SDK's short `DayOfWeek` display name
+    (`TextStyle.SHORT`) in Mon-first calendar order (e.g. `"Weekly Mon, Wed,
+    Fri"`) — not the single-letter narrow form, since narrow abbreviations
+    collide (Tue/Thu both "T", Sat/Sun both "S"); monthly reads `"Monthly "` +
+    ascending days-of-month (e.g. `"Monthly 1, 15"`). The label is treated as
     English-only, unlike the spec's explicitly locale-independent countdown
     labels.

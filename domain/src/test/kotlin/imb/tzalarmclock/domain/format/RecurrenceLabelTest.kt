@@ -13,12 +13,19 @@ class RecurrenceLabelTest {
     fun `weekly lists days in Monday-first order regardless of input order`() {
         val schedule = AlarmSchedule.Weekly(setOf(DayOfWeek.FRIDAY, DayOfWeek.MONDAY, DayOfWeek.WEDNESDAY))
 
-        assertEquals("Weekly M, W, F", RecurrenceLabel.format(schedule))
+        assertEquals("Weekly Mon, Wed, Fri", RecurrenceLabel.format(schedule))
     }
 
     @Test
     fun `weekly single day`() {
-        assertEquals("Weekly M", RecurrenceLabel.format(AlarmSchedule.Weekly(setOf(DayOfWeek.MONDAY))))
+        assertEquals("Weekly Mon", RecurrenceLabel.format(AlarmSchedule.Weekly(setOf(DayOfWeek.MONDAY))))
+    }
+
+    @Test
+    fun `weekly uses short names that stay distinct, unlike single-letter abbreviations`() {
+        val schedule = AlarmSchedule.Weekly(setOf(DayOfWeek.TUESDAY, DayOfWeek.THURSDAY, DayOfWeek.SATURDAY, DayOfWeek.SUNDAY))
+
+        assertEquals("Weekly Tue, Thu, Sat, Sun", RecurrenceLabel.format(schedule))
     }
 
     @Test

@@ -97,7 +97,7 @@ class SummaryUiStateTest {
         val entry = buildSummaryUiState(listOf(alarm), AppSettings.DEFAULTS, now)
             .sections.single().entries.single()
 
-        assertEquals("Weekly M, W, F", entry.recurrenceLabel)
+        assertEquals("Weekly Mon, Wed, Fri", entry.recurrenceLabel)
     }
 
     @Test

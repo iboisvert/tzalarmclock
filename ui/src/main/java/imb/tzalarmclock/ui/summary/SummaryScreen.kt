@@ -197,7 +197,7 @@ private fun SummaryScreenPopulatedPreview() {
                                 enabled = true,
                                 nextRingDateLabel = "Jul 30",
                                 countdownLabel = "2 h",
-                                recurrenceLabel = "Weekly M, W, F",
+                                recurrenceLabel = "Weekly Mon, Wed, Fri",
                             ),
                         ),
                     ),
