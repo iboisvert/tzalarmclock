@@ -1,5 +1,6 @@
 package imb.tzalarmclock.domain.summary
 
+import imb.tzalarmclock.domain.format.RecurrenceLabel
 import imb.tzalarmclock.domain.model.Alarm
 import imb.tzalarmclock.domain.schedule.nextOccurrenceAfter
 import java.time.DayOfWeek
@@ -28,11 +29,14 @@ enum class AlarmGroup {
  *   `null` when it is disabled or has no future occurrence. The spec shows the
  *   next-ring date and countdown only for enabled alarms, so `null` is exactly
  *   the signal to omit both.
+ * @param recurrenceLabel [RecurrenceLabel.format] of the alarm's schedule, or
+ *   `null` for a non-recurring one.
  */
 data class AlarmSummaryEntry(
     val alarm: Alarm,
     val localTime: LocalTime,
     val nextOccurrence: ZonedDateTime?,
+    val recurrenceLabel: String?,
 )
 
 /** A non-empty [AlarmGroup] and its alarms, already ordered. */
@@ -89,6 +93,7 @@ fun summarizeAlarms(
             alarm = alarm,
             localTime = occurrence?.toLocalTime() ?: alarm.time,
             nextOccurrence = occurrence.takeIf { alarm.enabled },
+            recurrenceLabel = RecurrenceLabel.format(alarm.schedule),
         )
     }
 

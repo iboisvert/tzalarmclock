@@ -28,6 +28,8 @@ data class SummarySectionUi(
  * @param nextRingDateLabel the alarm's next-ring date, or `null` when disabled
  *   (mirrors [imb.tzalarmclock.domain.summary.AlarmSummaryEntry.nextOccurrence]).
  * @param countdownLabel the fuzzy countdown to that date, or `null` alongside it.
+ * @param recurrenceLabel e.g. `"Weekly M, W, F"` or `"Monthly 1, 15"`, or
+ *   `null` for a non-recurring alarm.
  */
 data class SummaryEntryUi(
     val id: Long,
@@ -36,6 +38,7 @@ data class SummaryEntryUi(
     val enabled: Boolean,
     val nextRingDateLabel: String?,
     val countdownLabel: String?,
+    val recurrenceLabel: String?,
 )
 
 /**
@@ -67,6 +70,7 @@ fun buildSummaryUiState(
                     countdownLabel = entry.nextOccurrence?.let {
                         FuzzyCountdown.format(now.toInstant(), it.toInstant())
                     },
+                    recurrenceLabel = entry.recurrenceLabel,
                 )
             },
         )

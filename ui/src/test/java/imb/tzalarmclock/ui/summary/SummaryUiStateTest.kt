@@ -1,6 +1,7 @@
 package imb.tzalarmclock.ui.summary
 
 import imb.tzalarmclock.domain.model.Alarm
+import imb.tzalarmclock.domain.model.AlarmSchedule
 import imb.tzalarmclock.domain.model.AppSettings
 import imb.tzalarmclock.domain.summary.AlarmGroup
 import org.junit.Assert.assertEquals
@@ -8,6 +9,7 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
+import java.time.DayOfWeek
 import java.time.LocalDateTime
 import java.time.LocalTime
 import java.time.ZoneId
@@ -81,6 +83,31 @@ class SummaryUiStateTest {
             .sections.single().entries.single()
 
         assertEquals("", entry.name)
+    }
+
+    @Test
+    fun `a recurring alarm carries its recurrence label`() {
+        val alarm = Alarm(
+            id = 1,
+            name = "Weekday",
+            time = LocalTime.of(9, 0),
+            schedule = AlarmSchedule.Weekly(setOf(DayOfWeek.MONDAY, DayOfWeek.WEDNESDAY, DayOfWeek.FRIDAY)),
+        )
+
+        val entry = buildSummaryUiState(listOf(alarm), AppSettings.DEFAULTS, now)
+            .sections.single().entries.single()
+
+        assertEquals("Weekly M, W, F", entry.recurrenceLabel)
+    }
+
+    @Test
+    fun `a non-recurring alarm has no recurrence label`() {
+        val alarm = Alarm(id = 1, name = "Once", time = LocalTime.of(9, 0))
+
+        val entry = buildSummaryUiState(listOf(alarm), AppSettings.DEFAULTS, now)
+            .sections.single().entries.single()
+
+        assertNull(entry.recurrenceLabel)
     }
 
     @Test

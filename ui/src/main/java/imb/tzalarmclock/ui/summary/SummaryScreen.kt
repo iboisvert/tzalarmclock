@@ -147,6 +147,13 @@ private fun AlarmRow(
                 text = entry.localTimeLabel,
                 style = MaterialTheme.typography.bodyMedium,
             )
+            if (entry.recurrenceLabel != null) {
+                Text(
+                    text = entry.recurrenceLabel,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
         }
         if (entry.enabled && entry.nextRingDateLabel != null && entry.countdownLabel != null) {
             Column(horizontalAlignment = Alignment.End) {
@@ -190,6 +197,7 @@ private fun SummaryScreenPopulatedPreview() {
                                 enabled = true,
                                 nextRingDateLabel = "Jul 30",
                                 countdownLabel = "2 h",
+                                recurrenceLabel = "Weekly M, W, F",
                             ),
                         ),
                     ),
@@ -203,6 +211,7 @@ private fun SummaryScreenPopulatedPreview() {
                                 enabled = false,
                                 nextRingDateLabel = null,
                                 countdownLabel = null,
+                                recurrenceLabel = null,
                             ),
                         ),
                     ),
