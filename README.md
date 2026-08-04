@@ -19,8 +19,11 @@ list, the full-screen Ringing page with snooze/dismiss, and the Settings
 page all work, backed by real OS scheduling (alarms are armed with
 `AlarmManager`, re-armed after a reboot or app update, and re-evaluated
 whenever the device's time zone changes). Release builds run with R8
-minification on, and CI exercises that variant. Only Stage 11 (polish and
-release readiness) remains before the plan is complete.
+minification on, and CI exercises that variant. Stage 11 (Details page
+Add/Cancel/Delete button rework — a deliberate deviation from the spec's
+back-button-always-saves behavior — plus Summary page recurrence labels)
+and Stage 12 (polish and release readiness) remain before the plan is
+complete.
 
 Reboot, force-stop, DND/silent bypass, and OEM battery-optimisation behaviour
 aren't fully verifiable on an emulator — see `docs/Stage3ManualTests.md` and

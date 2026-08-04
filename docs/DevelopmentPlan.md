@@ -442,7 +442,7 @@ repeatable test or audit step checked off, not just "seems to work."
 
 **Goal:** turn on release-build code shrinking/obfuscation and make CI build
 and test that variant, so R8 issues (missing keep rules, stripped reflection
-targets, etc.) surface before Stage 11's polish pass rather than after.
+targets, etc.) surface before Stage 12's polish pass rather than after.
 
 - Enable R8 optimization for the `release` build type (flip `app/build.gradle
   .kts`'s `optimization.enable` from `false` to `true`), including
@@ -465,7 +465,82 @@ still work on a release-variant install).
 
 ---
 
-## Stage 11 — Polish & release readiness
+## Stage 11 — Details page buttons & Summary recurrence labels
+
+**Goal:** two independent changes bundled into one stage because they were
+requested together: (1) replace the Details page's autosave-on-back behavior
+with an explicit button set, and (2) show each recurring alarm's actual
+recurrence pattern on the Summary page instead of leaving it implicit.
+
+### Task 1 — Details page: explicit Add/Cancel/Delete buttons
+
+⚠ **Deviates from the spec, not an ambiguity resolution.**
+`docs/Requirements.md:70-71` states: "If the user chooses the Android back
+button, then changes to the alarm settings will be saved." This task
+deliberately replaces that behavior:
+
+- **Creating a new alarm** (`isNew`): the bottom-of-form button row shows
+  **Add** and **Cancel**. Add explicitly saves the new alarm — superseding
+  both Stage 5's implicit autosave-on-back and Stage 8's Cancel-only cutout
+  for new alarms. Cancel discards the in-progress form without creating
+  anything.
+- **Editing an existing alarm**: the button row shows **Cancel** and
+  **Delete**, replacing Stage 5's "Delete" + implicit autosave-on-back.
+  There is no explicit Save button for edits: Cancel reverts any changes
+  made since the page was opened back to the last-saved state; Delete
+  removes the alarm outright (keeping Stage 5's existing confirmation step).
+- The Android system back button is remapped to behave exactly like Cancel
+  in both cases — it no longer saves.
+- **Discard-changes confirmation**: Cancel (whether tapped or triggered via
+  back) prompts the user to confirm discarding only when the form is
+  actually dirty relative to the snapshot taken when the page was opened (or
+  last saved). An unmodified form's Cancel/back navigates straight back, no
+  prompt.
+- Supersedes assumption #10 (see the amended entry in the Assumptions log)
+  and folds Stage 8's `isNew`-only Cancel button into a single Cancel
+  affordance shared by create and edit.
+
+### Task 2 — Summary page: recurrence label
+
+The spec's Summary page field list (`docs/Requirements.md:40-54`) has no
+recurrence label — this is an addition, not a deviation. A recurring alarm's
+row gains a label describing its pattern:
+
+- **Weekly**: `"Weekly "` followed by the alarm's selected days, in calendar
+  order starting Monday (not the device locale's first-day-of-week, so the
+  label reads the same everywhere), comma-separated, e.g. an alarm on
+  Monday/Wednesday/Friday reads `"Weekly M, W, F"`.
+- **Monthly**: `"Monthly "` followed by the alarm's selected days-of-month,
+  in ascending numeric order, comma-separated, e.g. an alarm on the 1st and
+  15th reads `"Monthly 1, 15"`.
+- One-time and next-occurrence (non-recurring) alarms get no recurrence
+  label, same as today.
+- ⚠ *Day abbreviations collide*: single-letter weekday abbreviations
+  (`DayOfWeek.getDisplayName(TextStyle.NARROW, …)`, matching the "M, W, F"
+  example) are not unique in English — Tuesday/Thursday both narrow to "T",
+  Saturday/Sunday both narrow to "S". Shipping the single-letter form as
+  specified anyway, since it matches the literal example given and
+  disambiguating (e.g. "Tu"/"Th", "Sa"/"Su") wasn't requested; revisit if
+  this proves confusing in practice.
+- ⚠ *Locale scope*: unlike the countdown labels' explicit "locale-independent"
+  requirement (spec line 53), nothing says whether the recurrence label
+  should localize. Treated as English-only for now, consistent with the
+  literal examples given.
+
+**Exit criteria:** creating a new alarm and tapping Add saves it and returns
+to Summary; tapping Cancel (button or back) on a dirty new-alarm form
+prompts, and on confirm discards it with no row added; editing an alarm,
+changing a field, and tapping Cancel (button or back) prompts, and on
+confirm reverts to the pre-edit alarm with no changes persisted; editing
+without changing anything and pressing back/Cancel returns immediately with
+no prompt; Delete continues to require its existing confirmation step; a
+weekly alarm on Mon/Wed/Fri shows `"Weekly M, W, F"` on the Summary page and
+a monthly alarm on the 1st/15th shows `"Monthly 1, 15"`; non-recurring alarms
+show no recurrence label.
+
+---
+
+## Stage 12 — Polish & release readiness
 
 **Goal:** ship-quality pass across everything built.
 
@@ -483,7 +558,7 @@ still work on a release-variant install).
   this plan (several already are: TZ broadcasts → Stage 3, alarm
   scheduling/recurrence → Stages 2–3, delete alarm → Stage 5, summary
   refresh bug → Stage 4, permission warning → Stages 3/8, responsive
-  layout → Stage 11).
+  layout → Stage 12).
 
 **Exit criteria:** fresh-install walkthrough of all four pages with no
 placeholder data, on at least two screen sizes.
@@ -525,8 +600,9 @@ Consolidated list of the ⚠ items above, for quick review/sign-off:
 9. Disabled alarms' placement within the Summary groups is underspecified;
    placeholder behavior (append to "Later") is a stand-in for a product
    decision, not a final answer.
-10. Back-button on Details page autosaves; there's no separate discard/
-    cancel path since the spec doesn't request one.
+10. ~~Back-button on Details page autosaves; there's no separate discard/
+    cancel path since the spec doesn't request one.~~ **Superseded by
+    Stage 11** — see item 22.
 11. Volume escalation ramp duration is a fixed, non-user-configurable
     constant (~60–90s), since the spec lists no setting for it.
 12. Dismiss uses a deliberate multi-step gesture; Snooze is single-tap —
@@ -555,3 +631,18 @@ Consolidated list of the ⚠ items above, for quick review/sign-off:
 21. `FuzzyCountdown` reads `"< 1 min"` rather than a literal `"0 min"` when
     the remainder rounds to zero (Stage 8), deviating from Stage 2's literal
     spec algorithm since "0 min" reads as no time left rather than imminent.
+22. ⚠ **Deliberate deviation from the spec** (Stage 11), not an ambiguity
+    resolution: `Requirements.md:70-71` says the Android back button always
+    saves changes on the Details page. Stage 11 instead gives new alarms
+    explicit **Add**/**Cancel** buttons and existing alarms **Cancel**/
+    **Delete** buttons, remaps system back to behave like Cancel, and prompts
+    to discard changes on Cancel/back only when the form is dirty.
+23. Summary page recurrence label (Stage 11, an addition, not a spec
+    deviation — the spec's field list has no such label): weekly reads
+    `"Weekly "` + narrow single-letter day abbreviations in Mon-first
+    calendar order (e.g. `"Weekly M, W, F"`); monthly reads `"Monthly "` +
+    ascending days-of-month (e.g. `"Monthly 1, 15"`). Single-letter weekday
+    abbreviations collide (Tue/Thu both "T", Sat/Sun both "S") but are used
+    anyway to match the literal example given; the label is treated as
+    English-only, unlike the spec's explicitly locale-independent countdown
+    labels.
