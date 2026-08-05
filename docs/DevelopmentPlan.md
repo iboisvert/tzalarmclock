@@ -467,10 +467,12 @@ still work on a release-variant install).
 
 ## Stage 11 — Details page buttons & Summary recurrence labels
 
-**Goal:** two independent changes bundled into one stage because they were
+**Goal:** three independent changes bundled into one stage because they were
 requested together: (1) replace the Details page's autosave-on-back behavior
-with an explicit button set, and (2) show each recurring alarm's actual
-recurrence pattern on the Summary page instead of leaving it implicit.
+with an explicit button set, (2) show each recurring alarm's actual
+recurrence pattern on the Summary page instead of leaving it implicit, and
+(3) make the Summary page's proximity group headers (Today/Tomorrow/This
+Week/Later) easier to spot against the alarm rows.
 
 ### Task 1 — Details page: explicit Add/Cancel/Delete buttons
 
@@ -532,6 +534,31 @@ row gains a label describing its pattern:
   should localize. Treated as English-only for now, consistent with the
   literal examples given.
 
+### Task 3 — Summary page: proximity-header background color
+
+The spec's Summary page field list doesn't address header styling — this is
+a legibility fix, not a deviation. The Today/Tomorrow/This Week/Later group
+headers (`SectionHeader`) previously relied on tinted label text alone
+(`colorScheme.primary`) with no fill, which read faintly against the alarm
+rows and was easy to miss while scrolling a populated list.
+
+Two background treatments were built and compared side by side, both
+screenshotted from the running app on the same three-section dataset:
+
+- **Header background only**: each header gets a full-width
+  `primaryContainer` fill (text in `onPrimaryContainer`); alarm rows are
+  untouched.
+- **Per-group background, header + rows**: each of the four groups gets its
+  own tint — `primary`/`secondary`/`tertiary` containers plus
+  `surfaceVariant` for Later — carried through the header and lightened
+  (blended 35% toward `colorScheme.surface`) for its alarm rows.
+
+**Header background only** was chosen: it fixes the legibility problem the
+per-group treatment also fixes, without the added visual noise of four
+differently-tinted row blocks competing for attention. Both options draw
+from existing Material theme roles rather than hardcoded colors, so either
+would have adapted to dynamic color and dark theme automatically.
+
 **Exit criteria:** creating a new alarm and tapping Add saves it and returns
 to Summary; tapping Cancel (button or back) on a dirty new-alarm form shows
 *"Discard changes?"*, and Discard leaves with no row added while Keep Editing
@@ -543,7 +570,10 @@ present; editing without changing anything and pressing back/Cancel returns
 immediately with no dialog; Delete continues to require its existing
 confirmation step; a weekly alarm on Mon/Wed/Fri shows `"Weekly Mon, Wed,
 Fri"` on the Summary page and a monthly alarm on the 1st/15th shows
-`"Monthly 1, 15"`; non-recurring alarms show no recurrence label.
+`"Monthly 1, 15"`; non-recurring alarms show no recurrence label; each
+proximity header (Today, Tomorrow, This Week, Later) renders with a
+`primaryContainer` background behind its label, visually distinct from the
+alarm rows below it, which keep their default background.
 
 ---
 
