@@ -1,0 +1,81 @@
+name: Publish Release
+
+# Two ways in: push a version tag (the normal path), or trigger manually from
+# the Actions tab for a re-run against an existing tag (e.g. retrying after a
+# transient failure without re-tagging).
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Existing tag to (re-)publish, e.g. v1.2.0'
+        required: true
+
+# A release tag should never race itself, but don't cancel a build that's
+# already partway through signing/uploading — unlike build.yml's CI group,
+# this one doesn't cancel-in-progress.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+
+permissions:
+  contents: write # required to create the Release and upload assets
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+          submodules: recursive
+          token: ${{ secrets.SUBMODULE_PAT }}
+
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android platform 37
+        run: sdkmanager "platforms;android-37.0"
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      # versionName in app/build.gradle.kts is a hardcoded literal, not
+      # derived from the git tag, so nothing stops it drifting out of sync
+      # with what's being tagged. Fail loudly here instead of silently
+      # publishing a release whose APK reports the wrong version.
+      - name: Check tag matches versionName
+        run: |
+          tag="${{ inputs.tag || github.ref_name }}"
+          expected="${tag#v}"
+          actual="$(grep -oP 'versionName\s*=\s*"\K[^"]+' app/build.gradle.kts)"
+          if [ "$expected" != "$actual" ]; then
+            echo "::error::Tag $tag (expects versionName $expected) does not match app/build.gradle.kts versionName \"$actual\""
+            exit 1
+          fi
+
+      # Same release/R8-minified variant build.yml compiles on every push;
+      # re-run here too since a release can be triggered independently of
+      # that workflow (e.g. re-publishing an already-merged tag).
+      - name: Unit test
+        run: ./gradlew testReleaseUnitTest :domain:test --stacktrace --no-daemon
+
+      - name: Build signed release APK and AAB
+        run: ./gradlew assembleRelease bundleRelease --stacktrace --no-daemon
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ inputs.tag || github.ref_name }}
+          generate_release_notes: true
+          files: |
+            app/build/outputs/apk/release/*.apk
+            app/build/outputs/bundle/release/*.aab
