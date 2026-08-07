@@ -24,6 +24,7 @@ jobs:
         with:
           submodules: recursive
           token: ${{ secrets.SUBMODULE_PAT }}
+
       - name: Set up JDK
         uses: actions/setup-java@v4
         with:
