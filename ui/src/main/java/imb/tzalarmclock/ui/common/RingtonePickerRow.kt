@@ -34,10 +34,18 @@ internal fun RingtonePickerRow(
     }
     val effectiveUri = ringtoneUri ?: fallbackUri
         ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)?.toString()
-    val title = remember(effectiveUri) {
-        effectiveUri?.let {
+    val title = remember(effectiveUri, ringtoneUri) {
+        val resolved = effectiveUri?.let {
             runCatching { RingtoneManager.getRingtone(context, Uri.parse(it))?.getTitle(context) }.getOrNull()
-        } ?: "Unknown"
+        }
+        when {
+            resolved != null -> resolved
+            // This field's own choice is set but can no longer be resolved (e.g. the
+            // app that owned it was uninstalled) — say so distinctly from "unset", so
+            // the user knows to re-pick rather than assuming this is just the default.
+            ringtoneUri != null -> "Ringtone unavailable"
+            else -> "System default"
+        }
     }
     EditableRow(
         label = label,

@@ -581,21 +581,86 @@ alarm rows below it, which keep their default background.
 
 **Goal:** ship-quality pass across everything built.
 
-- Responsive layout fixes for alarm-properties view and time-chooser
-  dialog (existing README TODOs — naturally resolved once Stages 4–7 are
-  built with Compose's adaptive layout primitives from the start, but
-  verified here across phone sizes/orientations).
-- Empty states (no alarms yet), error states (permission denied,
-  ringtone missing/uninstalled).
-- Accessibility pass on the Ringing page specifically (large touch
-  targets, high contrast, works with reduced vision/cognition as the
-  spec explicitly calls out).
-- App icon, naming/branding consistency with "TzAlarmClock" short name.
-- Retire `Checklist.md`'s ad hoc TODO list once its items are folded into
-  this plan (several already are: TZ broadcasts → Stage 3, alarm
-  scheduling/recurrence → Stages 2–3, delete alarm → Stage 5, summary
-  refresh bug → Stage 4, permission warning → Stages 3/8, responsive
-  layout → Stage 12).
+A pre-implementation audit found most of this stage's bullet list already
+satisfied by earlier stages, so it's built as targeted gaps (Tasks 1–3)
+rather than a from-scratch pass:
+
+- **Responsive layout** — the time-chooser dialog was already fixed in
+  Stage 5, the date-chooser dialog in Stage 8; the time-zone picker and
+  ringtone picker were confirmed already correct in landscape during
+  Stage 5. Details and Settings both wrap their form in a
+  `verticalScroll` `Column`, and the weekday/month-day selectors use
+  `FlowRow`, so narrow widths wrap rather than clip. Live-verified this
+  stage on the emulator at portrait/landscape and at `wm size`-overridden
+  360×640dp (the compact-phone reference width still common today) with
+  no issues. ⚠ *One genuine finding, deliberately left unfixed*: at
+  320×640dp — Android's absolute minimum supported width — the Schedule
+  `SingleChoiceSegmentedButtonRow`'s "Monthly" segment wraps and the row
+  overflows past the screen edge, because Material3's row sizes itself to
+  `IntrinsicSize.Min` and a `SegmentedButton` label's minimum intrinsic
+  width is its longest *unbreakable* word (confirmed via the Material3
+  1.4.0 source — passing an explicit per-segment `Modifier.weight(1f)`
+  changes nothing, since `SegmentedButton` already applies that weight
+  internally regardless). Not fixed because it's structurally
+  unreachable: this app's `minSdk` is 31 (Android 12), and no device that
+  ships with Android 12+ has a 320dp-wide screen — that width class
+  predates the OS versions this app can run on. No further changes
+  needed on any width this app can actually run at.
+- **Empty states** — Summary already shows "No alarms yet." for a
+  zero-alarm list (`SummaryScreen`, since Stage 4). Already done.
+- **Error states, permission denied** — `SchedulingWarnings`
+  (Stages 3/9) already surfaces exact-alarm/notification/battery
+  permission gaps with an inline fix action. Already done.
+- **Error states, ringtone missing/uninstalled** — split into two cases.
+  *Playback* (`RingingService`) already falls back to the system default
+  alarm sound if the stored URI fails to resolve (Stage 6) — no change
+  needed. *Display* (`RingtonePickerRow`, used by both Details and
+  Settings) didn't distinguish "unset, using the system default" from "a
+  ringtone was explicitly chosen but can no longer be resolved" — both
+  showed the same ambiguous "Unknown". This gap is closed in **Task 1**.
+- **App icon, naming/branding** — the launcher icon is already a custom
+  design (not the Android Studio template), `app_name` is `TzAlarmClock`
+  everywhere it's user-facing. Already done.
+- **Accessibility pass on the Ringing page** — large touch targets
+  (64dp buttons) and high contrast (fixed black/white regardless of
+  system theme) were already in place from Stage 6; every icon-only
+  control app-wide already carries a descriptive `contentDescription`
+  (`EditableRow`'s Edit/Clear buttons, Settings/Add/Back). The gap:
+  Dismiss's hold gesture reads raw press-duration off
+  `MutableInteractionSource`, bypassing Compose's semantics tree, so an
+  accessibility service's synthesized click (e.g. TalkBack's plain
+  double-tap) lands on a no-op `onClick = {}` instead of dismissing —
+  the only way to trigger it was a real-time hold. Closed in **Task 2**.
+- **Retire `Checklist.md`** — of its items, TZ broadcasts (Stage 3), alarm
+  scheduling/recurrence (Stages 2–3), permission warning (Stages 3/8), and
+  responsive layout (this stage, above) were already struck through or
+  covered. The remaining two open items — remove-timezone button (done via
+  `EditableRow`'s `onClear` in Stage 5/7, just never marked) and the
+  Summary-refresh-on-toggle bug (done via `observeAlarms()` in Stage 4) —
+  are both already implemented, just not reflected in the file. Folded in
+  and the file retired in **Task 3**.
+
+### Task 1 — `RingtonePickerRow`: distinguish unresolvable from unset
+
+`title` now falls back to `"Ringtone unavailable"` (not `"Unknown"`) when
+this field's *own* `ringtoneUri` is non-null but fails to resolve — telling
+the user their previously-picked ringtone is gone and prompting a re-pick,
+versus `"System default"` for the rare case where nothing is set and even
+the platform default URI won't resolve.
+
+### Task 2 — Accessible alternative to Ringing's hold-to-dismiss gesture
+
+`HoldToDismissButton` gains a `semantics { onLongClick(...) }` action
+alongside the existing press-and-hold gesture, so an accessibility
+service's long-click action (TalkBack's double-tap-and-hold or a Switch
+Access long-press action) dismisses immediately rather than requiring a
+timed real-world hold — the visual/touch interaction for sighted users is
+unchanged.
+
+### Task 3 — Retire `Checklist.md`
+
+Its two still-open items are confirmed already implemented (see above),
+the file is deleted, and this plan is the sole TODO source going forward.
 
 **Exit criteria:** fresh-install walkthrough of all four pages with no
 placeholder data, on at least two screen sizes.

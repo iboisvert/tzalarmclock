@@ -26,6 +26,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.onLongClick
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -143,7 +145,20 @@ private fun HoldToDismissButton(onDismiss: () -> Unit, modifier: Modifier = Modi
         onDismiss()
     }
 
-    Box(modifier = modifier, contentAlignment = Alignment.Center) {
+    Box(
+        modifier = modifier.semantics {
+            // The visual/touch interaction is a real-time hold, which an
+            // accessibility service's synthesized click can't perform — its
+            // long-click action (TalkBack's double-tap-and-hold, or a Switch
+            // Access long-press action) dismisses immediately instead, as the
+            // discoverable accessible equivalent.
+            onLongClick(label = "Dismiss alarm") {
+                onDismiss()
+                true
+            }
+        },
+        contentAlignment = Alignment.Center,
+    ) {
         Button(
             onClick = {},
             interactionSource = interactionSource,
