@@ -37,6 +37,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -50,6 +51,7 @@ import kotlinx.coroutines.launch
 @Composable
 fun SettingsScreen(
     onBack: () -> Unit,
+    versionInfo: String,
     modifier: Modifier = Modifier,
     viewModel: SettingsViewModel = viewModel(),
 ) {
@@ -73,6 +75,7 @@ fun SettingsScreen(
         onVolumeEscalationChanged = viewModel::onVolumeEscalationChanged,
         onDefaultVibrateChanged = viewModel::onDefaultVibrateChanged,
         onUse24HourFormatChanged = viewModel::onUse24HourFormatChanged,
+        versionInfo = versionInfo,
         modifier = modifier,
     )
 }
@@ -89,6 +92,7 @@ private fun SettingsScreen(
     onVolumeEscalationChanged: (Boolean) -> Unit,
     onDefaultVibrateChanged: (Boolean) -> Unit,
     onUse24HourFormatChanged: (Boolean) -> Unit,
+    versionInfo: String,
     modifier: Modifier = Modifier,
 ) {
     BackHandler(onBack = onBack)
@@ -184,6 +188,14 @@ private fun SettingsScreen(
                     onUse24HourFormatChanged = onUse24HourFormatChanged,
                 )
             }
+
+            Text(
+                text = versionInfo,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.fillMaxWidth(),
+                textAlign = TextAlign.Center,
+            )
         }
     }
 
@@ -270,6 +282,7 @@ private fun SettingsScreenPreview() {
             onVolumeEscalationChanged = {},
             onDefaultVibrateChanged = {},
             onUse24HourFormatChanged = {},
+            versionInfo = "1.0.0-beta • built 2026-08-07 14:23 UTC",
         )
     }
 }

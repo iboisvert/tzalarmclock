@@ -14,6 +14,7 @@ import imb.tzalarmclock.ui.summary.SummaryScreen
 
 @Composable
 fun TzAlarmClockNavHost(
+    versionInfo: String,
     modifier: Modifier = Modifier,
     navController: NavHostController = rememberNavController(),
 ) {
@@ -46,7 +47,7 @@ fun TzAlarmClockNavHost(
             )
         }
         composable(Routes.Settings.route) {
-            SettingsScreen(onBack = { navController.popBackStack() })
+            SettingsScreen(onBack = { navController.popBackStack() }, versionInfo = versionInfo)
         }
     }
 }

@@ -1,3 +1,6 @@
+import java.time.Instant
+import java.time.ZoneOffset
+import java.time.format.DateTimeFormatter
 import java.util.Properties
 
 plugins {
@@ -20,6 +23,14 @@ android {
         targetSdk = 35
         versionCode = 1
         versionName = "1.0.0-beta"
+
+        // Formatted at configuration time so every build (and every variant)
+        // gets a stamp for the moment it was compiled, shown on the Settings
+        // page so a debugger can tell which build they're looking at.
+        val buildTimestamp = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm 'UTC'")
+            .withZone(ZoneOffset.UTC)
+            .format(Instant.now())
+        buildConfigField("String", "BUILD_TIMESTAMP", "\"$buildTimestamp\"")
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -46,6 +57,7 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 }
 

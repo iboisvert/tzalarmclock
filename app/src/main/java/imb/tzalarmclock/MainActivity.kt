@@ -55,7 +55,9 @@ class MainActivity : ComponentActivity() {
                             startActivity(BatteryOptimization.requestIntent(this@MainActivity))
                         },
                     )
-                    TzAlarmClockNavHost()
+                    TzAlarmClockNavHost(
+                        versionInfo = "${BuildConfig.VERSION_NAME} • built ${BuildConfig.BUILD_TIMESTAMP}",
+                    )
                 }
             }
         }
