@@ -52,6 +52,14 @@ fun RingingScreen(
 ) {
     LaunchedEffect(alarmId) { viewModel.load(alarmId) }
     val uiState by viewModel.uiState.collectAsState()
+    // Closes the screen when RingingService ends this ring cycle without a
+    // tap here having caused it — an unacknowledged-ring timeout, most
+    // notably. onSnooze/onDismiss below already call onFinish() directly for
+    // the tap-driven cases; this is a no-op then, since finishing an already-
+    // finishing Activity is safe.
+    LaunchedEffect(uiState.stillRinging) {
+        if (!uiState.stillRinging) onFinish()
+    }
     RingingScreen(
         uiState = uiState,
         onSnooze = {

@@ -49,6 +49,8 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     fun onVolumeEscalationChanged(enabled: Boolean) = update { it.copy(volumeEscalation = enabled) }
     fun onDefaultVibrateChanged(enabled: Boolean) = update { it.copy(defaultVibrate = enabled) }
     fun onUse24HourFormatChanged(enabled: Boolean) = update { it.copy(use24HourFormat = enabled) }
+    fun onRingTimeoutChanged(minutes: Int) =
+        update { it.copy(ringTimeoutMinutes = minutes.coerceIn(MIN_RING_TIMEOUT_MINUTES, MAX_RING_TIMEOUT_MINUTES)) }
 
     /** No-ops if [load] never finished, so an early back-press can't persist blank settings. */
     suspend fun save() {
@@ -66,5 +68,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         const val MAX_SNOOZE_PERIOD_MINUTES = 60
         const val MIN_SNOOZE_COUNT = 0
         const val MAX_SNOOZE_COUNT = 10
+        const val MIN_RING_TIMEOUT_MINUTES = 1
+        const val MAX_RING_TIMEOUT_MINUTES = 60
     }
 }

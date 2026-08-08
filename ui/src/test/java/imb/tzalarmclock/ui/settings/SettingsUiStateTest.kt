@@ -27,6 +27,7 @@ class SettingsUiStateTest {
             volumeEscalation = true,
             defaultVibrate = false,
             use24HourFormat = false,
+            ringTimeoutMinutes = 20,
         )
 
         val state = buildSettingsUiState(settings)

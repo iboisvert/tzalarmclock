@@ -3,7 +3,7 @@ package imb.tzalarmclock.domain.model
 import java.time.ZoneId
 
 /**
- * The eight app-wide settings from the spec, as a single immutable snapshot.
+ * The app-wide settings, as a single immutable snapshot.
  *
  * The spec says settings are written when the settings page closes, so the
  * whole object is read and written at once rather than field by field.
@@ -21,6 +21,11 @@ import java.time.ZoneId
  * @param volumeEscalation ramp up to [alarmVolume] instead of starting there.
  * @param defaultVibrate fallback for [Alarm.vibrate].
  * @param use24HourFormat how times are rendered throughout the app.
+ * @param ringTimeoutMinutes how long an alarm rings unacknowledged before
+ *   `RingingService` acts on the user's behalf: snoozes it, the same as an
+ *   explicit tap on Snooze, if [maxSnoozeCount] allows one more; otherwise
+ *   dismisses it, the same as an explicit hold-to-dismiss (non-recurring
+ *   alarms disable, snooze state clears) — either way, without a tap.
  */
 data class AppSettings(
     val homeZone: ZoneId? = null,
@@ -31,6 +36,7 @@ data class AppSettings(
     val volumeEscalation: Boolean = false,
     val defaultVibrate: Boolean = true,
     val use24HourFormat: Boolean = true,
+    val ringTimeoutMinutes: Int = DEFAULT_RING_TIMEOUT_MINUTES,
 ) {
     init {
         require(snoozePeriodMinutes > 0) {
@@ -42,6 +48,9 @@ data class AppSettings(
         require(alarmVolume in MIN_ALARM_VOLUME..MAX_ALARM_VOLUME) {
             "Alarm volume must be in $MIN_ALARM_VOLUME..$MAX_ALARM_VOLUME, was $alarmVolume"
         }
+        require(ringTimeoutMinutes > 0) {
+            "Ring timeout must be positive, was $ringTimeoutMinutes"
+        }
     }
 
     companion object {
@@ -50,6 +59,7 @@ data class AppSettings(
         const val DEFAULT_ALARM_VOLUME = 1.0f
         const val MIN_ALARM_VOLUME = 0.0f
         const val MAX_ALARM_VOLUME = 1.0f
+        const val DEFAULT_RING_TIMEOUT_MINUTES = 3
 
         /** What a fresh install starts with. */
         val DEFAULTS = AppSettings()

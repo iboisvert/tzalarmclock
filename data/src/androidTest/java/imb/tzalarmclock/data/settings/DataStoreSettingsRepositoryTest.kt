@@ -65,6 +65,7 @@ class DataStoreSettingsRepositoryTest {
             volumeEscalation = true,
             defaultVibrate = false,
             use24HourFormat = false,
+            ringTimeoutMinutes = 8,
         )
 
         repository.save(settings)
@@ -109,6 +110,7 @@ class DataStoreSettingsRepositoryTest {
             volumeEscalation = true,
             defaultVibrate = false,
             use24HourFormat = false,
+            ringTimeoutMinutes = 15,
         )
         repository().save(settings)
 

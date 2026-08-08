@@ -14,6 +14,7 @@ data class SettingsUiState(
     val volumeEscalation: Boolean = false,
     val defaultVibrate: Boolean = true,
     val use24HourFormat: Boolean = true,
+    val ringTimeoutMinutes: Int = AppSettings.DEFAULT_RING_TIMEOUT_MINUTES,
 )
 
 fun buildSettingsUiState(settings: AppSettings): SettingsUiState = SettingsUiState(
@@ -26,6 +27,7 @@ fun buildSettingsUiState(settings: AppSettings): SettingsUiState = SettingsUiSta
     volumeEscalation = settings.volumeEscalation,
     defaultVibrate = settings.defaultVibrate,
     use24HourFormat = settings.use24HourFormat,
+    ringTimeoutMinutes = settings.ringTimeoutMinutes,
 )
 
 /** Converts the current form state back into [AppSettings] for persistence. */
@@ -38,4 +40,5 @@ fun SettingsUiState.toAppSettings(): AppSettings = AppSettings(
     volumeEscalation = volumeEscalation,
     defaultVibrate = defaultVibrate,
     use24HourFormat = use24HourFormat,
+    ringTimeoutMinutes = ringTimeoutMinutes,
 )

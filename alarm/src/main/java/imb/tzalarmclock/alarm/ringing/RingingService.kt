@@ -53,6 +53,7 @@ class RingingService : Service() {
     private var mediaPlayer: MediaPlayer? = null
     private var wakeLock: PowerManager.WakeLock? = null
     private var escalationJob: Job? = null
+    private var timeoutJob: Job? = null
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -64,7 +65,7 @@ class RingingService : Service() {
         }
         when (intent?.action) {
             ACTION_SNOOZE -> snooze(alarmId)
-            ACTION_DISMISS -> dismiss(alarmId)
+            ACTION_DISMISS -> dismiss(alarmId, dueToTimeout = false)
             else -> ring(alarmId)
         }
         return START_NOT_STICKY
@@ -72,6 +73,7 @@ class RingingService : Service() {
 
     override fun onDestroy() {
         stopRinging()
+        activeAlarmId = Alarm.NO_ID
         scope.cancel()
         super.onDestroy()
     }
@@ -84,6 +86,11 @@ class RingingService : Service() {
         // its sound stops) default until this app needs to actually queue
         // concurrent alarms.
         stopRinging()
+        // Set before anything else can fail: RingingViewModel polls this to
+        // know when to finish the ringing screen, and the screen may already
+        // be showing (relaunched via its own full-screen intent) by the time
+        // this method's coroutine below gets around to loading the alarm.
+        activeAlarmId = alarmId
 
         // Posted immediately, before the alarm/settings reads below: the OS
         // kills the service if startForeground() doesn't follow
@@ -110,10 +117,29 @@ class RingingService : Service() {
             if (alarm == null || !alarm.enabled) {
                 Log.w(TAG, "Alarm $alarmId fired but is gone or disabled")
                 stopRinging()
+                activeAlarmId = Alarm.NO_ID
                 stopSelf()
                 return@launch
             }
             val settings = DataProvider.settingsRepository(this@RingingService).getSettings()
+            // Acts on the user's behalf exactly like a tap would, just without
+            // one, once a ring goes unacknowledged for too long: snoozes it,
+            // the same as tapping Snooze, if there's a snooze left to give;
+            // otherwise dismisses it, the same as a hold-to-dismiss — see
+            // dismiss()'s dueToTimeout parameter. Mirrors canSnooze's own
+            // `remaining > 0` check in RingingUiState, just without the
+            // coerceAtLeast(0) that formatting a display count needs and this
+            // boolean doesn't. stopRinging() (called from both snooze() and
+            // dismiss()) cancels this the moment the user acts first.
+            timeoutJob = scope.launch {
+                delay(settings.ringTimeoutMinutes * MINUTES_TO_MILLIS)
+                val snoozeCount = SnoozeRegistry(this@RingingService).snoozeCount(alarmId)
+                if (snoozeCount < settings.maxSnoozeCount) {
+                    snooze(alarmId)
+                } else {
+                    dismiss(alarmId, dueToTimeout = true)
+                }
+            }
 
             NotificationManagerCompat.from(this@RingingService).notify(
                 RingingNotifications.notificationId(alarmId),
@@ -144,6 +170,7 @@ class RingingService : Service() {
 
     private fun snooze(alarmId: Long) {
         stopRinging()
+        activeAlarmId = Alarm.NO_ID
         scope.launch {
             val alarmRepository = DataProvider.alarmRepository(this@RingingService)
             val settings = DataProvider.settingsRepository(this@RingingService).getSettings()
@@ -181,8 +208,18 @@ class RingingService : Service() {
         }
     }
 
-    private fun dismiss(alarmId: Long) {
+    /**
+     * @param dueToTimeout `true` when this dismiss is [RingingService] acting
+     *   on the user's behalf after [AppSettings.ringTimeoutMinutes] of no
+     *   response with no snooze left to give (see [ring]'s `timeoutJob`),
+     *   rather than an explicit hold-to-dismiss or notification action — the
+     *   only difference is that it also posts the "canceled" notification
+     *   below, so a user who wasn't there to see the alarm ring still finds
+     *   out it went unacknowledged.
+     */
+    private fun dismiss(alarmId: Long, dueToTimeout: Boolean) {
         stopRinging()
+        activeAlarmId = Alarm.NO_ID
         RingingNotifications.cancel(this, alarmId)
         scope.launch {
             SnoozeRegistry(this@RingingService).clear(alarmId)
@@ -195,6 +232,20 @@ class RingingService : Service() {
                 alarms.setEnabled(alarmId, false)
             }
             AlarmProvider.scheduler(this@RingingService).syncAll()
+            if (dueToTimeout && alarm != null) {
+                val use24HourFormat = DataProvider.settingsRepository(this@RingingService)
+                    .getSettings().use24HourFormat
+                NotificationManagerCompat.from(this@RingingService).notify(
+                    RingingNotifications.CANCELED_TAG,
+                    RingingNotifications.notificationId(alarmId),
+                    RingingNotifications.buildCanceled(
+                        context = this@RingingService,
+                        alarm = alarm,
+                        use24HourFormat = use24HourFormat,
+                        contentIntent = mainActivityPendingIntent(),
+                    ),
+                )
+            }
             stopSelf()
         }
     }
@@ -269,6 +320,8 @@ class RingingService : Service() {
     private fun stopRinging() {
         escalationJob?.cancel()
         escalationJob = null
+        timeoutJob?.cancel()
+        timeoutJob = null
         mediaPlayer?.runCatching { stop() }
         mediaPlayer?.release()
         mediaPlayer = null
@@ -335,7 +388,23 @@ class RingingService : Service() {
         private const val ESCALATION_STEP_MILLIS = 500L
         private const val MAX_RING_DURATION_MILLIS = 10 * 60 * 1000L
         private const val OPEN_APP_REQUEST_CODE = 100
+        private const val MINUTES_TO_MILLIS = 60_000L
         private val VIBRATION_PATTERN = longArrayOf(0, 500, 500)
+
+        /**
+         * The alarm id this (process-wide singleton) service is actively
+         * ringing, or [Alarm.NO_ID] between ring cycles.
+         *
+         * In-memory, not persisted: it exists purely so [isRinging] can tell
+         * [imb.tzalarmclock.ui.ringing.RingingViewModel] when to finish the
+         * ringing screen after this service ends a ring cycle on its own —
+         * an unacknowledged-ring timeout auto-snoozing or auto-dismissing,
+         * most notably — with nobody having tapped anything in the UI to
+         * trigger it. Losing this on process death is fine: the screen dies
+         * with the process too.
+         */
+        @Volatile
+        private var activeAlarmId: Long = Alarm.NO_ID
 
         fun ringIntent(context: Context, alarmId: Long): Intent =
             Intent(context, RingingService::class.java).setAction(ACTION_RING).putExtra(EXTRA_ALARM_ID, alarmId)
@@ -345,6 +414,13 @@ class RingingService : Service() {
 
         fun dismissIntent(context: Context, alarmId: Long): Intent =
             Intent(context, RingingService::class.java).setAction(ACTION_DISMISS).putExtra(EXTRA_ALARM_ID, alarmId)
+
+        /**
+         * Whether this service is actively ringing [alarmId] right now — polled
+         * by the ringing screen so it can finish itself once a ring cycle ends
+         * without the user's own tap being what ended it.
+         */
+        fun isRinging(alarmId: Long): Boolean = activeAlarmId == alarmId
 
         /** How many times the current ring cycle for [alarmId] has been snoozed. */
         fun snoozeCount(context: Context, alarmId: Long): Int = SnoozeRegistry(context).snoozeCount(alarmId)

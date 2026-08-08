@@ -6,7 +6,15 @@ import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
-/** What the Ringing screen displays, refreshed on every clock tick while ringing. */
+/**
+ * What the Ringing screen displays, refreshed on every clock tick while ringing.
+ *
+ * @param stillRinging `false` once [imb.tzalarmclock.alarm.ringing.RingingService]
+ *   has ended this ring cycle on its own — an unacknowledged-ring timeout,
+ *   most notably — rather than through a tap on this screen. Defaults `true`
+ *   so the screen never flashes "finished" before the ViewModel's first
+ *   real read of it.
+ */
 data class RingingUiState(
     val alarmName: String = "",
     val timeLabel: String = "",
@@ -14,6 +22,7 @@ data class RingingUiState(
     val zoneLabel: String = "",
     val canSnooze: Boolean = true,
     val snoozesRemaining: Int = 0,
+    val stillRinging: Boolean = true,
 )
 
 /**

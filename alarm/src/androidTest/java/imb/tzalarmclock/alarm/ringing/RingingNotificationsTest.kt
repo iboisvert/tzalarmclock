@@ -88,6 +88,29 @@ class RingingNotificationsTest {
         )
     }
 
+    @Test
+    fun canceledNotificationNamesTheAlarmAndItsTime() {
+        RingingNotifications.ensureCanceledChannel(context)
+
+        val channel = manager.getNotificationChannel(RingingNotifications.CANCELED_CHANNEL_ID)
+        assertEquals(NotificationManager.IMPORTANCE_DEFAULT, channel.importance)
+
+        val notification = RingingNotifications.buildCanceled(
+            context = context,
+            alarm = alarm.copy(time = LocalTime.of(7, 0)),
+            use24HourFormat = true,
+            contentIntent = null,
+        )
+        assertFalse(
+            "an accidental swipe must not clear the canceled state as ongoing",
+            notification.flags and Notification.FLAG_ONGOING_EVENT != 0,
+        )
+        assertTrue(
+            "must name the alarm's scheduled time so the user knows which ring this was",
+            notification.extras.getCharSequence(Notification.EXTRA_TEXT).toString().contains("07:00"),
+        )
+    }
+
     /**
      * The snoozed and ringing notifications for one alarm must stay two
      * *separate* notifications.

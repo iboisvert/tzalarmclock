@@ -6,7 +6,8 @@ import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 
 /**
- * DataStore keys for the eight settings in the spec.
+ * DataStore keys backing [imb.tzalarmclock.domain.model.AppSettings] — the
+ * spec's original eight settings, plus [RING_TIMEOUT_MINUTES].
  *
  * A key that is absent means "never set", and the corresponding
  * `AppSettings` default applies. The two nullable settings — home zone and
@@ -21,6 +22,7 @@ internal object SettingsKeys {
     val VOLUME_ESCALATION = booleanPreferencesKey("volume_escalation")
     val DEFAULT_VIBRATE = booleanPreferencesKey("default_vibrate")
     val USE_24_HOUR_FORMAT = booleanPreferencesKey("use_24_hour_format")
+    val RING_TIMEOUT_MINUTES = intPreferencesKey("ring_timeout_minutes")
 
     /** File name of the settings DataStore, without the `.preferences_pb` suffix. */
     const val DATA_STORE_NAME = "settings"

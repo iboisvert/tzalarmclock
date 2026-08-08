@@ -75,6 +75,7 @@ fun SettingsScreen(
         onVolumeEscalationChanged = viewModel::onVolumeEscalationChanged,
         onDefaultVibrateChanged = viewModel::onDefaultVibrateChanged,
         onUse24HourFormatChanged = viewModel::onUse24HourFormatChanged,
+        onRingTimeoutChanged = viewModel::onRingTimeoutChanged,
         versionInfo = versionInfo,
         modifier = modifier,
     )
@@ -92,6 +93,7 @@ private fun SettingsScreen(
     onVolumeEscalationChanged: (Boolean) -> Unit,
     onDefaultVibrateChanged: (Boolean) -> Unit,
     onUse24HourFormatChanged: (Boolean) -> Unit,
+    onRingTimeoutChanged: (Int) -> Unit,
     versionInfo: String,
     modifier: Modifier = Modifier,
 ) {
@@ -145,6 +147,15 @@ private fun SettingsScreen(
                 min = MIN_SNOOZE_COUNT,
                 max = MAX_SNOOZE_COUNT,
                 onValueChanged = onMaxSnoozeCountChanged,
+            )
+
+            StepperRow(
+                label = "Ring timeout",
+                value = uiState.ringTimeoutMinutes,
+                suffix = "min",
+                min = MIN_RING_TIMEOUT_MINUTES,
+                max = MAX_RING_TIMEOUT_MINUTES,
+                onValueChanged = onRingTimeoutChanged,
             )
 
             HorizontalDivider()
@@ -266,6 +277,8 @@ private const val MIN_SNOOZE_PERIOD_MINUTES = 1
 private const val MAX_SNOOZE_PERIOD_MINUTES = 60
 private const val MIN_SNOOZE_COUNT = 0
 private const val MAX_SNOOZE_COUNT = 10
+private const val MIN_RING_TIMEOUT_MINUTES = 1
+private const val MAX_RING_TIMEOUT_MINUTES = 60
 
 @Preview(showBackground = true)
 @Composable
@@ -282,6 +295,7 @@ private fun SettingsScreenPreview() {
             onVolumeEscalationChanged = {},
             onDefaultVibrateChanged = {},
             onUse24HourFormatChanged = {},
+            onRingTimeoutChanged = {},
             versionInfo = "1.0.0-beta • built 2026-08-07 14:23 UTC",
         )
     }

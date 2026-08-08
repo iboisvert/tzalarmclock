@@ -20,6 +20,7 @@ class AppSettingsTest {
         assertFalse(defaults.volumeEscalation)
         assertTrue(defaults.defaultVibrate)
         assertTrue(defaults.use24HourFormat)
+        assertEquals(3, defaults.ringTimeoutMinutes)
     }
 
     @Test(expected = IllegalArgumentException::class)
@@ -45,5 +46,10 @@ class AppSettingsTest {
     @Test(expected = IllegalArgumentException::class)
     fun `alarm volume below the minimum is rejected`() {
         AppSettings(alarmVolume = -0.1f)
+    }
+
+    @Test(expected = IllegalArgumentException::class)
+    fun `ring timeout must be positive`() {
+        AppSettings(ringTimeoutMinutes = 0)
     }
 }

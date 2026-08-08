@@ -30,6 +30,7 @@ class SettingsMappingTest {
         assertEquals(5, settings.snoozePeriodMinutes)
         assertEquals(AppSettings.DEFAULTS.maxSnoozeCount, settings.maxSnoozeCount)
         assertEquals(AppSettings.DEFAULTS.use24HourFormat, settings.use24HourFormat)
+        assertEquals(AppSettings.DEFAULTS.ringTimeoutMinutes, settings.ringTimeoutMinutes)
     }
 
     @Test
@@ -43,6 +44,7 @@ class SettingsMappingTest {
             SettingsKeys.VOLUME_ESCALATION to true,
             SettingsKeys.DEFAULT_VIBRATE to false,
             SettingsKeys.USE_24_HOUR_FORMAT to false,
+            SettingsKeys.RING_TIMEOUT_MINUTES to 8,
         )
 
         assertEquals(
@@ -55,6 +57,7 @@ class SettingsMappingTest {
                 volumeEscalation = true,
                 defaultVibrate = false,
                 use24HourFormat = false,
+                ringTimeoutMinutes = 8,
             ),
             prefs.toAppSettings(),
         )

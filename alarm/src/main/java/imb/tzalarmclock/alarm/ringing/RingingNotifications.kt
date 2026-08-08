@@ -55,6 +55,16 @@ object RingingNotifications {
      */
     const val SNOOZED_TAG = "snoozed"
 
+    /**
+     * Separate from [CHANNEL_ID] and [SNOOZED_CHANNEL_ID] for the same reason
+     * as the snoozed channel: "this alarm was canceled" is informational, not
+     * something demanding the ringing channel's urgency.
+     */
+    const val CANCELED_CHANNEL_ID = "alarm_canceled_v1"
+
+    /** Distinct key from both [SNOOZED_TAG] and the untagged ringing notification. */
+    const val CANCELED_TAG = "canceled"
+
     fun ensureChannel(context: Context) {
         val manager = context.getSystemService(NotificationManager::class.java)
         if (manager.getNotificationChannel(CHANNEL_ID) != null) return
@@ -82,6 +92,22 @@ object RingingNotifications {
             NotificationManager.IMPORTANCE_DEFAULT,
         ).apply {
             description = context.getString(R.string.alarm_snoozed_channel_description)
+            setSound(null, null)
+            enableVibration(false)
+        }
+        manager.createNotificationChannel(channel)
+    }
+
+    fun ensureCanceledChannel(context: Context) {
+        val manager = context.getSystemService(NotificationManager::class.java)
+        if (manager.getNotificationChannel(CANCELED_CHANNEL_ID) != null) return
+
+        val channel = NotificationChannel(
+            CANCELED_CHANNEL_ID,
+            context.getString(R.string.alarm_canceled_channel_name),
+            NotificationManager.IMPORTANCE_DEFAULT,
+        ).apply {
+            description = context.getString(R.string.alarm_canceled_channel_description)
             setSound(null, null)
             enableVibration(false)
         }
@@ -160,6 +186,40 @@ object RingingNotifications {
                     dismissIntent,
                 ).build(),
             )
+            .build()
+    }
+
+    /**
+     * Builds the "alarm canceled" notification for [alarm]: shown when
+     * [RingingService] auto-dismisses a ring nobody acknowledged within
+     * `AppSettings.ringTimeoutMinutes` *and* there's no snooze left to give
+     * instead (an unacknowledged ring with a snooze still available auto-
+     * snoozes instead — silently, from this notification's point of view,
+     * since that already posts its own "Snoozed until…" notification). So
+     * the user finds out about a real cancellation they weren't there to see,
+     * rather than assuming the alarm is still armed.
+     *
+     * Not ongoing, and auto-cancels on tap — same reasoning as the snoozed
+     * notification, just with nothing left armed to accidentally clear: by
+     * the time this posts, the ring cycle is already over.
+     */
+    fun buildCanceled(
+        context: Context,
+        alarm: Alarm,
+        use24HourFormat: Boolean,
+        contentIntent: PendingIntent?,
+    ): Notification {
+        ensureCanceledChannel(context)
+        val timeLabel = alarm.time.format(timeFormatter(use24HourFormat))
+        return NotificationCompat.Builder(context, CANCELED_CHANNEL_ID)
+            .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
+            .setContentTitle(alarm.name.ifBlank { context.getString(R.string.alarm_default_name) })
+            .setContentText(context.getString(R.string.alarm_canceled_text, timeLabel))
+            .setCategory(NotificationCompat.CATEGORY_ALARM)
+            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+            .setOngoing(false)
+            .setAutoCancel(true)
+            .setContentIntent(contentIntent)
             .build()
     }
 

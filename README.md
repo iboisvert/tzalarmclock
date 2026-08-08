@@ -41,10 +41,13 @@ off against.
 - **Alarm Ringing** — full-screen, over-lock-screen ringing UI designed for
   low light and reduced cognition, with dismiss and snooze. Dismiss is
   deliberately harder to trigger than snooze, to avoid accidentally killing
-  an alarm you meant to pause.
+  an alarm you meant to pause. An unacknowledged ring auto-snoozes after a
+  configurable timeout, the same as tapping Snooze; once no snoozes are left
+  it auto-dismisses instead, posting a notification of the cancellation and
+  the alarm's time.
 - **Settings** — home time zone, snooze period and max snooze count, default
   ringtone/vibration, alarm volume with optional escalation, 12/24-hour time
-  format.
+  format, unacknowledged-ring timeout.
 
 Full behavioral spec, including the fuzzy-countdown rounding rules,
 recurrence semantics, and DST handling, is in `docs/Requirements.md`.

@@ -47,7 +47,13 @@ class RingingViewModel(application: Application) : AndroidViewModel(application)
             val settings = settingsRepository.getSettings()
             while (true) {
                 val snoozeCount = RingingService.snoozeCount(context, alarmId)
+                val stillRinging = RingingService.isRinging(alarmId)
                 _uiState.value = buildRingingUiState(alarm, settings, ZonedDateTime.now(), snoozeCount)
+                    .copy(stillRinging = stillRinging)
+                // Nothing left to refresh once the service has ended this ring
+                // cycle by itself (a timeout, most notably) — RingingScreen
+                // reacts to stillRinging turning false by finishing itself.
+                if (!stillRinging) break
                 delay(TICK_PERIOD_MILLIS)
             }
         }

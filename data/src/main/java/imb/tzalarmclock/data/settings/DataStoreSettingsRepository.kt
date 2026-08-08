@@ -39,6 +39,7 @@ class DataStoreSettingsRepository(
             prefs[SettingsKeys.VOLUME_ESCALATION] = settings.volumeEscalation
             prefs[SettingsKeys.DEFAULT_VIBRATE] = settings.defaultVibrate
             prefs[SettingsKeys.USE_24_HOUR_FORMAT] = settings.use24HourFormat
+            prefs[SettingsKeys.RING_TIMEOUT_MINUTES] = settings.ringTimeoutMinutes
         }
     }
 }
@@ -62,5 +63,6 @@ internal fun Preferences.toAppSettings(): AppSettings {
         volumeEscalation = this[SettingsKeys.VOLUME_ESCALATION] ?: defaults.volumeEscalation,
         defaultVibrate = this[SettingsKeys.DEFAULT_VIBRATE] ?: defaults.defaultVibrate,
         use24HourFormat = this[SettingsKeys.USE_24_HOUR_FORMAT] ?: defaults.use24HourFormat,
+        ringTimeoutMinutes = this[SettingsKeys.RING_TIMEOUT_MINUTES] ?: defaults.ringTimeoutMinutes,
     )
 }

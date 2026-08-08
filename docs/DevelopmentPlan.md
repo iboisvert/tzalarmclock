@@ -754,3 +754,30 @@ Consolidated list of the ⚠ items above, for quick review/sign-off:
     ascending days-of-month (e.g. `"Monthly 1, 15"`). The label is treated as
     English-only, unlike the spec's explicitly locale-independent countdown
     labels.
+24. **Unacknowledged-ring timeout, added 2026-08-08, revised same day — an
+    addition, not a spec deviation** (the spec's Alarm Ringing / App
+    Settings sections don't mention one; requested directly by the user,
+    after the plan's staged build had already completed, so it isn't a
+    numbered stage). A ninth `AppSettings` field, `ringTimeoutMinutes`
+    (default **3**, range 1–60 minutes, same shape as the existing
+    snooze-period stepper on the Settings page): `RingingService` now
+    schedules a delayed self-action alongside playback on every `ring()`,
+    cancelled the moment the user snoozes or dismisses first. That action is
+    **snooze**, not dismiss, whenever `maxSnoozeCount` allows one more —
+    the exact same `snooze()` path an explicit tap takes (arms the next
+    instant, posts "Snoozed until…"); only once snoozes are exhausted does
+    it fall back to `dismiss()`, reusing the exact same path a manual
+    hold-to-dismiss takes (non-recurring alarms disable, snooze state
+    clears, scheduler resyncs) — the one difference there is it also posts a
+    new "Alarm canceled" notification (own low-importance channel,
+    `alarm_canceled_v1`) naming the alarm and the time it was set for, since
+    nobody was necessarily present to see it happen. (First implemented as
+    always-dismiss with a 5-minute default; changed to snooze-first, 3-minute
+    default, same day, before merge — no released version ever shipped the
+    always-dismiss behavior.) The ringing screen itself needs to close on
+    its own too when this fires in the background, regardless of which of
+    the two outcomes it was: `RingingService` now tracks the
+    currently-ringing alarm id in an in-memory companion var, and
+    `RingingViewModel`'s existing 1-second tick polls it (alongside the
+    snooze count it already polled) to finish the screen once the service
+    ends the cycle without a tap here having caused it.

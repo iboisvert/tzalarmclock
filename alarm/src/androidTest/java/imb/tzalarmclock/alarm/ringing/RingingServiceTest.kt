@@ -14,6 +14,7 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -26,7 +27,8 @@ import java.time.LocalTime
  * `AlarmReceiver` moved into [RingingService] as of Stage 6: a non-recurring
  * alarm retires on *dismiss*, not on fire (so it can actually be snoozed
  * first), and a snooze arms a new instant roughly one snooze period away
- * without touching `enabled`.
+ * without touching `enabled`. Also covers [RingingService.isRinging]'s state
+ * transitions, added for the unacknowledged-ring timeout feature.
  */
 @RunWith(AndroidJUnit4::class)
 class RingingServiceTest {
@@ -61,6 +63,12 @@ class RingingServiceTest {
     private suspend fun awaitSnooze(id: Long, predicate: () -> Boolean) {
         withTimeout(TIMEOUT_MILLIS) {
             while (!predicate()) delay(POLL_MILLIS)
+        }
+    }
+
+    private suspend fun awaitRingingState(alarmId: Long, expected: Boolean) {
+        withTimeout(TIMEOUT_MILLIS) {
+            while (RingingService.isRinging(alarmId) != expected) delay(POLL_MILLIS)
         }
     }
 
@@ -159,6 +167,37 @@ class RingingServiceTest {
                 delay(POLL_MILLIS)
             }
         }
+    }
+
+    /**
+     * [RingingService.isRinging] is what lets `RingingViewModel` notice a ring
+     * cycle ending on its own — an unacknowledged-ring timeout auto-snoozing
+     * or auto-dismissing, most notably — and close the ringing screen without
+     * a tap here having caused it. Covers the state transition, not the
+     * timeout itself: actually waiting out `ringTimeoutMinutes` (minimum one
+     * real minute) belongs to manual/live verification, not this suite.
+     */
+    @Test
+    fun ringingMarksTheAlarmActiveUntilDismissed() = runBlocking {
+        val id = save(AlarmSchedule.NextOccurrence)
+        assertFalse(RingingService.isRinging(id))
+
+        context.startService(RingingService.ringIntent(context, id))
+        awaitRingingState(id, expected = true)
+
+        context.startService(RingingService.dismissIntent(context, id))
+        awaitRingingState(id, expected = false)
+    }
+
+    @Test
+    fun snoozingAlsoEndsTheActiveRingImmediately() = runBlocking {
+        val id = save(AlarmSchedule.NextOccurrence)
+
+        context.startService(RingingService.ringIntent(context, id))
+        awaitRingingState(id, expected = true)
+
+        context.startService(RingingService.snoozeIntent(context, id))
+        awaitRingingState(id, expected = false)
     }
 
     private companion object {

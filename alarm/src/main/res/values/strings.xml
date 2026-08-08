@@ -8,4 +8,7 @@
     <string name="alarm_snoozed_channel_description">Shows while an alarm is snoozed, with an option to dismiss it.</string>
     <string name="alarm_snoozed_text">Snoozed until %1$s</string>
     <string name="alarm_snoozed_dismiss_action">Dismiss</string>
+    <string name="alarm_canceled_channel_name">Alarm canceled</string>
+    <string name="alarm_canceled_channel_description">Shows when an alarm rings unacknowledged past its timeout and is canceled.</string>
+    <string name="alarm_canceled_text">Rang unacknowledged at %1$s and was canceled</string>
 </resources>
