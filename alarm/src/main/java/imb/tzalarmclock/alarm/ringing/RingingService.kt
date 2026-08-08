@@ -1,9 +1,12 @@
 package imb.tzalarmclock.alarm.ringing
 
+import android.Manifest
+import android.app.Notification
 import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.content.pm.ServiceInfo
 import android.media.AudioAttributes
 import android.media.MediaPlayer
@@ -18,6 +21,7 @@ import android.os.VibratorManager
 import android.util.Log
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.app.ServiceCompat
+import androidx.core.content.ContextCompat
 import imb.tzalarmclock.alarm.AlarmProvider
 import imb.tzalarmclock.data.DataProvider
 import imb.tzalarmclock.domain.model.Alarm
@@ -141,7 +145,7 @@ class RingingService : Service() {
                 }
             }
 
-            NotificationManagerCompat.from(this@RingingService).notify(
+            notifyIfAllowed(
                 RingingNotifications.notificationId(alarmId),
                 RingingNotifications.build(
                     this@RingingService,
@@ -187,7 +191,7 @@ class RingingService : Service() {
                 // the snooze comes due, or its full-screen intent won't fire and
                 // the ringing screen won't appear over the lock screen. See
                 // RingingNotifications.SNOOZED_TAG.
-                NotificationManagerCompat.from(this@RingingService).notify(
+                notifyIfAllowed(
                     RingingNotifications.SNOOZED_TAG,
                     RingingNotifications.notificationId(alarmId),
                     RingingNotifications.buildSnoozed(
@@ -235,7 +239,7 @@ class RingingService : Service() {
             if (dueToTimeout && alarm != null) {
                 val use24HourFormat = DataProvider.settingsRepository(this@RingingService)
                     .getSettings().use24HourFormat
-                NotificationManagerCompat.from(this@RingingService).notify(
+                notifyIfAllowed(
                     RingingNotifications.CANCELED_TAG,
                     RingingNotifications.notificationId(alarmId),
                     RingingNotifications.buildCanceled(
@@ -247,6 +251,47 @@ class RingingService : Service() {
                 )
             }
             stopSelf()
+        }
+    }
+
+    /**
+     * `NotificationManagerCompat.notify()`, but explicitly checked against
+     * `POST_NOTIFICATIONS` first (required from API 33) rather than trusting
+     * it's granted — lint flags the raw call as `MissingPermission` for
+     * exactly this reason. The check has to be inlined directly around the
+     * `notify()` call in the same function, not factored out (tried first,
+     * to both overloads below and to `SchedulingHealth.areNotificationsAllowed`
+     * before that): lint's dataflow analysis doesn't trace a permission check
+     * through a call to another function to see that it guards this one, no
+     * matter how directly — it only recognizes the check written right here.
+     *
+     * A skip, not a failure: this service's own playback/vibration keep
+     * running either way (its whole reason for existing, per the class doc),
+     * so a denied notification permission must never crash — or even
+     * interrupt — the ring workflow around it. `SchedulingHealth`'s startup
+     * warning is what tells the user their alarm is silently going
+     * notification-less; this just has to not blow up when that's the case.
+     */
+    private fun notifyIfAllowed(id: Int, notification: Notification) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
+            ContextCompat.checkSelfPermission(
+                this,
+                Manifest.permission.POST_NOTIFICATIONS,
+            ) == PackageManager.PERMISSION_GRANTED
+        ) {
+            NotificationManagerCompat.from(this).notify(id, notification)
+        }
+    }
+
+    /** [notifyIfAllowed] for a tagged notification — see [RingingNotifications.SNOOZED_TAG]. */
+    private fun notifyIfAllowed(tag: String, id: Int, notification: Notification) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
+            ContextCompat.checkSelfPermission(
+                this,
+                Manifest.permission.POST_NOTIFICATIONS,
+            ) == PackageManager.PERMISSION_GRANTED
+        ) {
+            NotificationManagerCompat.from(this).notify(tag, id, notification)
         }
     }
 
