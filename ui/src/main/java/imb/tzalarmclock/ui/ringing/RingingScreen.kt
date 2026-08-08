@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -85,6 +86,12 @@ private fun RingingScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
+                // RingingActivity hides the system bars for this screen, so
+                // this is normally a no-op — a safety net for the moment a
+                // swipe-in transiently reveals them (or, on an OEM that
+                // doesn't honour immersive mode at all, the only thing
+                // keeping the buttons below out from under the nav bar).
+                .systemBarsPadding()
                 .padding(32.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.SpaceBetween,
