@@ -36,6 +36,25 @@ object RingingNotifications {
      */
     const val SNOOZED_CHANNEL_ID = "alarm_snoozed_v1"
 
+    /**
+     * Makes the snoozed notification a *separate* notification from the ringing
+     * one rather than a replacement posted under the same id.
+     *
+     * This is what keeps a snooze re-fire visible over the lock screen. SystemUI
+     * only launches a [Notification.Builder.setFullScreenIntent] when the
+     * notification is **added** to its collection; updating one already posted
+     * under the same key silently skips the launch. Since the snoozed
+     * notification outlives its service (see [RingingService]'s snooze
+     * handling), re-posting the ringing notification under that same key on the
+     * re-fire read as an update, and the ringing screen never appeared — the
+     * user got a notification and had to unlock the device to reach the alarm.
+     * A tag makes the two notifications distinct keys, so the re-fire is an add.
+     *
+     * Only the snoozed notification is tagged: the ringing one is a foreground
+     * service notification, and `startForeground` takes an id with no tag.
+     */
+    const val SNOOZED_TAG = "snoozed"
+
     fun ensureChannel(context: Context) {
         val manager = context.getSystemService(NotificationManager::class.java)
         if (manager.getNotificationChannel(CHANNEL_ID) != null) return
@@ -147,8 +166,23 @@ object RingingNotifications {
     /** One notification per alarm, so two ringing close together don't collide. */
     fun notificationId(alarmId: Long): Int = alarmId.hashCode()
 
+    /** Clears both of [alarmId]'s notifications — the ringing one and the snoozed one. */
     fun cancel(context: Context, alarmId: Long) {
-        NotificationManagerCompat.from(context).cancel(notificationId(alarmId))
+        with(NotificationManagerCompat.from(context)) {
+            cancel(notificationId(alarmId))
+            cancel(SNOOZED_TAG, notificationId(alarmId))
+        }
+    }
+
+    /**
+     * Clears only [alarmId]'s snoozed notification, leaving a ringing one alone.
+     *
+     * Called as the alarm rings again: "snoozed until 07:10" is stale the moment
+     * that instant arrives, and leaving it posted would stack it under the
+     * ringing notification.
+     */
+    fun cancelSnoozed(context: Context, alarmId: Long) {
+        NotificationManagerCompat.from(context).cancel(SNOOZED_TAG, notificationId(alarmId))
     }
 
     private fun timeFormatter(use24HourFormat: Boolean): DateTimeFormatter =

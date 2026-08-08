@@ -100,6 +100,9 @@ class RingingService : Service() {
             ),
             ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK,
         )
+        // This ring may be a snooze coming due, in which case the snoozed
+        // notification is still posted and is now stale.
+        RingingNotifications.cancelSnoozed(this, alarmId)
         acquireWakeLock()
 
         scope.launch {
@@ -121,11 +124,14 @@ class RingingService : Service() {
                     ringingActivityPendingIntent(alarmId),
                 ),
             )
-            // Best-effort: brings the ringing screen to the foreground immediately
-            // rather than waiting for the user to act on the notification. Not
-            // fatal if it fails (background-activity-start restrictions vary by
-            // OEM/OS version) — the notification's full-screen intent, posted
-            // above, is the guaranteed fallback for actually reaching the user.
+            // Only reaches the screen when the app is already in the foreground,
+            // where it beats the heads-up notification the platform would show
+            // instead. From the background — the case that matters, and the one
+            // this service is normally in — Android's background-activity-launch
+            // rules reject it outright ("Background activity launch blocked!" in
+            // logcat, no exception thrown, so the catch below stays quiet). The
+            // notification's full-screen intent posted above is what actually
+            // puts the ringing screen over the lock screen, not this.
             try {
                 startActivity(ringingActivityIntent(alarmId))
             } catch (e: Exception) {
@@ -148,10 +154,14 @@ class RingingService : Service() {
             AlarmProvider.scheduler(this@RingingService).syncAll()
 
             if (alarm != null) {
-                // Replaces the ringing notification in place, then STOP_FOREGROUND_DETACH
-                // below leaves it posted as a plain notification once this service
-                // stops, rather than letting the OS remove it along with the service.
+                // A separate notification from the ringing one (hence the tag),
+                // not a replacement posted under the same id: the ringing
+                // notification has to be able to come back as a *new* one when
+                // the snooze comes due, or its full-screen intent won't fire and
+                // the ringing screen won't appear over the lock screen. See
+                // RingingNotifications.SNOOZED_TAG.
                 NotificationManagerCompat.from(this@RingingService).notify(
+                    RingingNotifications.SNOOZED_TAG,
                     RingingNotifications.notificationId(alarmId),
                     RingingNotifications.buildSnoozed(
                         context = this@RingingService,
@@ -162,11 +172,11 @@ class RingingService : Service() {
                         contentIntent = mainActivityPendingIntent(),
                     ),
                 )
-                ServiceCompat.stopForeground(this@RingingService, ServiceCompat.STOP_FOREGROUND_DETACH)
-            } else {
-                RingingNotifications.cancel(this@RingingService, alarmId)
-                ServiceCompat.stopForeground(this@RingingService, ServiceCompat.STOP_FOREGROUND_REMOVE)
             }
+            // Takes the ringing notification down with the service. The snoozed
+            // one posted above survives it, having never been the foreground
+            // notification — no STOP_FOREGROUND_DETACH needed to keep it.
+            ServiceCompat.stopForeground(this@RingingService, ServiceCompat.STOP_FOREGROUND_REMOVE)
             stopSelf()
         }
     }
