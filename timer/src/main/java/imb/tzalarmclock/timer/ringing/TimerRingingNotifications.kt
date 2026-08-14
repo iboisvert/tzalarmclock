@@ -11,12 +11,11 @@ import imb.tzalarmclock.timer.R
 
 /**
  * The notification that keeps [TimerRingingService] a valid foreground
- * service.
+ * service and (via [NotificationCompat.Builder.setFullScreenIntent])
+ * launches `TimerRingingActivity` over the lock screen.
  *
- * Stage 15 scope only: a single ringing notification with a Dismiss action,
- * no full-screen intent yet (that needs `TimerRingingActivity`, which Stage
- * 17 adds in the `app` module) and no separate snoozed/canceled channels,
- * since timers have neither concept.
+ * Mirrors `imb.tzalarmclock.alarm.ringing.RingingNotifications`, minus the
+ * separate snoozed/canceled channels — timers have neither concept.
  */
 object TimerRingingNotifications {
 
@@ -39,7 +38,20 @@ object TimerRingingNotifications {
         manager.createNotificationChannel(channel)
     }
 
-    fun build(context: Context, dismissIntent: PendingIntent): Notification {
+    /**
+     * @param fullScreenIntent launches `TimerRingingActivity` over the lock
+     *   screen (or as a heads-up notification if the device declines
+     *   full-screen intents).
+     * @param contentIntent what tapping the notification body does — the
+     *   same destination as [fullScreenIntent], for when it was shown as
+     *   heads-up.
+     */
+    fun build(
+        context: Context,
+        fullScreenIntent: PendingIntent,
+        contentIntent: PendingIntent,
+        dismissIntent: PendingIntent,
+    ): Notification {
         ensureChannel(context)
         return NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
@@ -50,6 +62,8 @@ object TimerRingingNotifications {
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             .setOngoing(true)
             .setAutoCancel(false)
+            .setFullScreenIntent(fullScreenIntent, true)
+            .setContentIntent(contentIntent)
             .addAction(0, context.getString(R.string.timer_dismiss_action), dismissIntent)
             .build()
     }

@@ -8,30 +8,41 @@ import android.content.pm.ServiceInfo
 import android.media.AudioAttributes
 import android.media.MediaPlayer
 import android.media.RingtoneManager
+import android.os.Build
 import android.os.IBinder
 import android.os.PowerManager
+import android.os.VibrationAttributes
+import android.os.VibrationEffect
+import android.os.VibratorManager
+import android.util.Log
 import androidx.core.app.ServiceCompat
 import imb.tzalarmclock.data.DataProvider
+import imb.tzalarmclock.domain.model.AppSettings
 import imb.tzalarmclock.domain.model.Timer
 import imb.tzalarmclock.domain.model.TimerState
 import imb.tzalarmclock.domain.schedule.reset
 import imb.tzalarmclock.timer.TimerProvider
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 /**
- * Owns an actively-ringing timer's playback and ongoing notification.
+ * Owns an actively-ringing timer's playback, vibration, volume escalation,
+ * and ongoing notification — mirrors
+ * `imb.tzalarmclock.alarm.ringing.RingingService`'s role for alarms, grown
+ * from Stage 15's interim version into this stage's full one.
  *
- * Stage 15 scope only: plays the system default alarm sound (Stage 18's
- * default-timer-ringtone setting doesn't exist yet) at a fixed volume, with
- * a plain Dismiss notification action and no full-screen ringing UI — Stage
- * 17 replaces this with the full `TimerRingingActivity`-backed experience
- * (vibration, volume escalation, hold-to-dismiss), mirroring how
- * `imb.tzalarmclock.alarm.ringing.RingingService` itself grew from Stage 3's
- * interim version into Stage 6's full one.
+ * Plays the system default alarm sound: Stage 18 is what adds
+ * `AppSettings.defaultTimerRingtoneUri` and switches playback to it; until
+ * then this is the same fallback `RingingService` itself falls back to.
+ * Volume, escalation, and vibrate-if-capable all reuse the existing
+ * alarm-level [AppSettings] fields as-is — the spec adds only a timer
+ * *ringtone* setting, nothing else timer-specific (see the dev plan's
+ * assumption log).
  *
  * A foreground service rather than logic in `TimerReceiver` directly, for
  * the same reason as the alarm equivalent: playback has to keep running well
@@ -42,6 +53,7 @@ class TimerRingingService : Service() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private var mediaPlayer: MediaPlayer? = null
     private var wakeLock: PowerManager.WakeLock? = null
+    private var escalationJob: Job? = null
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -74,11 +86,31 @@ class TimerRingingService : Service() {
         ServiceCompat.startForeground(
             this,
             TimerRingingNotifications.notificationId(timerId),
-            TimerRingingNotifications.build(this, dismissPendingIntent(timerId)),
+            TimerRingingNotifications.build(
+                this,
+                ringingActivityPendingIntent(timerId),
+                ringingActivityPendingIntent(timerId),
+                dismissPendingIntent(timerId),
+            ),
             ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK,
         )
         acquireWakeLock()
-        startPlayback()
+
+        scope.launch {
+            val settings = DataProvider.settingsRepository(this@TimerRingingService).getSettings()
+            // Same background-activity-launch caveat as RingingService: only
+            // reaches the screen directly when the app is already
+            // foreground. The notification's full-screen intent posted
+            // above is what actually puts the ringing screen over the lock
+            // screen otherwise.
+            try {
+                startActivity(ringingActivityIntent(timerId))
+            } catch (e: Exception) {
+                Log.w(TAG, "Couldn't start the timer ringing activity directly", e)
+            }
+            startPlayback(settings)
+            startVibration(settings)
+        }
     }
 
     private fun dismiss(timerId: Long) {
@@ -99,27 +131,66 @@ class TimerRingingService : Service() {
         }
     }
 
-    private fun startPlayback() {
+    private fun startPlayback(settings: AppSettings) {
         val fallbackUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
-        val player = MediaPlayer().apply {
-            setAudioAttributes(
-                AudioAttributes.Builder()
-                    .setUsage(AudioAttributes.USAGE_ALARM)
-                    .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                    .build(),
-            )
-            isLooping = true
-        }
+        val startVolume = if (settings.volumeEscalation) ESCALATION_START_VOLUME else settings.alarmVolume
+        val player = newMediaPlayer(startVolume)
         player.setDataSource(this, fallbackUri)
         player.setOnPreparedListener { it.start() }
         player.prepareAsync()
         mediaPlayer = player
+
+        if (settings.volumeEscalation) {
+            escalationJob = scope.launch { escalateVolume(settings.alarmVolume) }
+        }
+    }
+
+    private fun newMediaPlayer(volume: Float): MediaPlayer = MediaPlayer().apply {
+        setAudioAttributes(
+            AudioAttributes.Builder()
+                .setUsage(AudioAttributes.USAGE_ALARM)
+                .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                .build(),
+        )
+        isLooping = true
+        setVolume(volume, volume)
+    }
+
+    /** Mirrors `RingingService.escalateVolume` exactly. */
+    private suspend fun escalateVolume(targetVolume: Float) {
+        val steps = (ESCALATION_DURATION_MILLIS / ESCALATION_STEP_MILLIS).toInt()
+        for (step in 1..steps) {
+            delay(ESCALATION_STEP_MILLIS)
+            val fraction = step.toFloat() / steps
+            val volume = ESCALATION_START_VOLUME + (targetVolume - ESCALATION_START_VOLUME) * fraction
+            mediaPlayer?.setVolume(volume, volume)
+        }
+    }
+
+    private fun startVibration(settings: AppSettings) {
+        if (!settings.defaultVibrate) return
+        val vibrator = getSystemService(VibratorManager::class.java)?.defaultVibrator ?: return
+        if (!vibrator.hasVibrator()) return
+
+        val effect = VibrationEffect.createWaveform(VIBRATION_PATTERN, 0)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            val attributes = VibrationAttributes.Builder()
+                .setUsage(VibrationAttributes.USAGE_ALARM)
+                .build()
+            vibrator.vibrate(effect, attributes)
+        } else {
+            val attributes = AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_ALARM).build()
+            vibrator.vibrate(effect, attributes)
+        }
     }
 
     private fun stopRinging() {
+        escalationJob?.cancel()
+        escalationJob = null
         mediaPlayer?.runCatching { stop() }
         mediaPlayer?.release()
         mediaPlayer = null
+        getSystemService(VibratorManager::class.java)?.defaultVibrator?.cancel()
         wakeLock?.takeIf { it.isHeld }?.release()
         wakeLock = null
     }
@@ -130,6 +201,20 @@ class TimerRingingService : Service() {
             .newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "$packageName:TimerRingingWakeLock")
             .apply { acquire(MAX_RING_DURATION_MILLIS) }
     }
+
+    private fun ringingActivityIntent(timerId: Long): Intent =
+        Intent()
+            .setClassName(packageName, RINGING_ACTIVITY_CLASS)
+            .putExtra(EXTRA_TIMER_ID, timerId)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+
+    private fun ringingActivityPendingIntent(timerId: Long): PendingIntent =
+        PendingIntent.getActivity(
+            this,
+            timerId.hashCode(),
+            ringingActivityIntent(timerId),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
 
     private fun dismissPendingIntent(timerId: Long): PendingIntent =
         PendingIntent.getService(
@@ -144,14 +229,21 @@ class TimerRingingService : Service() {
         const val ACTION_DISMISS = "imb.tzalarmclock.timer.action.DISMISS"
         const val EXTRA_TIMER_ID = "imb.tzalarmclock.timer.extra.TIMER_ID"
 
+        /** Can't reference `TimerRingingActivity` directly: it lives in the `app` module, which depends on this one. */
+        private const val RINGING_ACTIVITY_CLASS = "imb.tzalarmclock.TimerRingingActivity"
+
+        private const val TAG = "TimerRingingService"
+        private const val ESCALATION_START_VOLUME = 0.15f
+        private const val ESCALATION_DURATION_MILLIS = 75_000L
+        private const val ESCALATION_STEP_MILLIS = 500L
         private const val MAX_RING_DURATION_MILLIS = 10 * 60 * 1000L
+        private val VIBRATION_PATTERN = longArrayOf(0, 500, 500)
 
         /**
          * The timer id this (process-wide singleton) service is actively
          * ringing, or [Timer.NO_ID] between ring cycles. In-memory, same
          * reasoning as `RingingService.activeAlarmId` — losing it on process
-         * death is fine, since the ringing UI (Stage 17) dies with the
-         * process too.
+         * death is fine, since the ringing screen dies with the process too.
          */
         @Volatile
         private var activeTimerId: Long = Timer.NO_ID

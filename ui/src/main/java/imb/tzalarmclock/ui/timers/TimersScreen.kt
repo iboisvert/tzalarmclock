@@ -33,11 +33,13 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.onFocusChanged
@@ -272,6 +274,21 @@ private fun DurationField(
     modifier: Modifier = Modifier,
 ) {
     var fieldValue by remember { mutableStateOf(TextFieldValue(value.takeIf { it != 0 }?.toString().orEmpty())) }
+    var isFocused by remember { mutableStateOf(false) }
+
+    // Deferred a frame rather than applied directly in onFocusChanged below:
+    // the tap that requests focus also positions the platform text field's
+    // own cursor from the tap offset, and that runs its course *after*
+    // focus changes, so setting the selection synchronously in
+    // onFocusChanged gets silently overwritten by it - confirmed via a real
+    // tap-then-type sequence, not just a theoretical race. Waiting one frame
+    // lets that settle first.
+    LaunchedEffect(isFocused) {
+        if (isFocused) {
+            withFrameNanos {}
+            fieldValue = fieldValue.copy(selection = TextRange(0, fieldValue.text.length))
+        }
+    }
 
     OutlinedTextField(
         value = fieldValue,
@@ -283,11 +300,7 @@ private fun DurationField(
         label = { Text(label) },
         singleLine = true,
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-        modifier = modifier.onFocusChanged { focusState ->
-            if (focusState.isFocused) {
-                fieldValue = fieldValue.copy(selection = TextRange(0, fieldValue.text.length))
-            }
-        },
+        modifier = modifier.onFocusChanged { focusState -> isFocused = focusState.isFocused },
     )
 }
 
