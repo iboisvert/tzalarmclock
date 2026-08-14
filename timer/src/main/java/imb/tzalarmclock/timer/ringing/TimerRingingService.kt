@@ -8,6 +8,7 @@ import android.content.pm.ServiceInfo
 import android.media.AudioAttributes
 import android.media.MediaPlayer
 import android.media.RingtoneManager
+import android.net.Uri
 import android.os.Build
 import android.os.IBinder
 import android.os.PowerManager
@@ -34,11 +35,12 @@ import kotlinx.coroutines.launch
  * Owns an actively-ringing timer's playback, vibration, volume escalation,
  * and ongoing notification — mirrors
  * `imb.tzalarmclock.alarm.ringing.RingingService`'s role for alarms, grown
- * from Stage 15's interim version into this stage's full one.
+ * from Stage 15's interim version into Stage 17's full one, with Stage 18's
+ * `AppSettings.defaultTimerRingtoneUri` now wired into playback.
  *
- * Plays the system default alarm sound: Stage 18 is what adds
- * `AppSettings.defaultTimerRingtoneUri` and switches playback to it; until
- * then this is the same fallback `RingingService` itself falls back to.
+ * Plays [AppSettings.defaultTimerRingtoneUri], falling back to the system
+ * default alarm sound when it's unset or fails to resolve (e.g. the app
+ * that owned it was uninstalled) — same fallback shape as `RingingService`.
  * Volume, escalation, and vibrate-if-capable all reuse the existing
  * alarm-level [AppSettings] fields as-is — the spec adds only a timer
  * *ringtone* setting, nothing else timer-specific (see the dev plan's
@@ -132,10 +134,19 @@ class TimerRingingService : Service() {
     }
 
     private fun startPlayback(settings: AppSettings) {
+        val requestedUri = settings.defaultTimerRingtoneUri?.let(Uri::parse)
         val fallbackUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
         val startVolume = if (settings.volumeEscalation) ESCALATION_START_VOLUME else settings.alarmVolume
-        val player = newMediaPlayer(startVolume)
-        player.setDataSource(this, fallbackUri)
+
+        var player = newMediaPlayer(startVolume)
+        try {
+            player.setDataSource(this, requestedUri ?: fallbackUri)
+        } catch (e: Exception) {
+            Log.w(TAG, "Couldn't play $requestedUri, falling back to default alarm sound", e)
+            player.release()
+            player = newMediaPlayer(startVolume)
+            player.setDataSource(this, fallbackUri)
+        }
         player.setOnPreparedListener { it.start() }
         player.prepareAsync()
         mediaPlayer = player

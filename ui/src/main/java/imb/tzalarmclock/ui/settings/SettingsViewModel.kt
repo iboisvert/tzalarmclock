@@ -51,6 +51,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     fun onUse24HourFormatChanged(enabled: Boolean) = update { it.copy(use24HourFormat = enabled) }
     fun onRingTimeoutChanged(minutes: Int) =
         update { it.copy(ringTimeoutMinutes = minutes.coerceIn(MIN_RING_TIMEOUT_MINUTES, MAX_RING_TIMEOUT_MINUTES)) }
+    fun onTimerRingtoneChanged(uri: String?) = update { it.copy(defaultTimerRingtoneUri = uri) }
 
     /** No-ops if [load] never finished, so an early back-press can't persist blank settings. */
     suspend fun save() {

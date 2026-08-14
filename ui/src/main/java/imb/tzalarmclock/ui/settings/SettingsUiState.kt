@@ -15,6 +15,7 @@ data class SettingsUiState(
     val defaultVibrate: Boolean = true,
     val use24HourFormat: Boolean = true,
     val ringTimeoutMinutes: Int = AppSettings.DEFAULT_RING_TIMEOUT_MINUTES,
+    val defaultTimerRingtoneUri: String? = null,
 )
 
 fun buildSettingsUiState(settings: AppSettings): SettingsUiState = SettingsUiState(
@@ -28,6 +29,7 @@ fun buildSettingsUiState(settings: AppSettings): SettingsUiState = SettingsUiSta
     defaultVibrate = settings.defaultVibrate,
     use24HourFormat = settings.use24HourFormat,
     ringTimeoutMinutes = settings.ringTimeoutMinutes,
+    defaultTimerRingtoneUri = settings.defaultTimerRingtoneUri,
 )
 
 /** Converts the current form state back into [AppSettings] for persistence. */
@@ -41,4 +43,5 @@ fun SettingsUiState.toAppSettings(): AppSettings = AppSettings(
     defaultVibrate = defaultVibrate,
     use24HourFormat = use24HourFormat,
     ringTimeoutMinutes = ringTimeoutMinutes,
+    defaultTimerRingtoneUri = defaultTimerRingtoneUri,
 )

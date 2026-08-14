@@ -71,6 +71,7 @@ fun SettingsScreen(
         onSnoozePeriodChanged = viewModel::onSnoozePeriodChanged,
         onMaxSnoozeCountChanged = viewModel::onMaxSnoozeCountChanged,
         onRingtoneChanged = viewModel::onRingtoneChanged,
+        onTimerRingtoneChanged = viewModel::onTimerRingtoneChanged,
         onAlarmVolumeChanged = viewModel::onAlarmVolumeChanged,
         onVolumeEscalationChanged = viewModel::onVolumeEscalationChanged,
         onDefaultVibrateChanged = viewModel::onDefaultVibrateChanged,
@@ -89,6 +90,7 @@ private fun SettingsScreen(
     onSnoozePeriodChanged: (Int) -> Unit,
     onMaxSnoozeCountChanged: (Int) -> Unit,
     onRingtoneChanged: (String?) -> Unit,
+    onTimerRingtoneChanged: (String?) -> Unit,
     onAlarmVolumeChanged: (Float) -> Unit,
     onVolumeEscalationChanged: (Boolean) -> Unit,
     onDefaultVibrateChanged: (Boolean) -> Unit,
@@ -165,6 +167,13 @@ private fun SettingsScreen(
                 ringtoneUri = uiState.defaultRingtoneUri,
                 fallbackUri = null,
                 onRingtoneChanged = onRingtoneChanged,
+            )
+
+            RingtonePickerRow(
+                label = "Default timer ring tone",
+                ringtoneUri = uiState.defaultTimerRingtoneUri,
+                fallbackUri = null,
+                onRingtoneChanged = onTimerRingtoneChanged,
             )
 
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -291,6 +300,7 @@ private fun SettingsScreenPreview() {
             onSnoozePeriodChanged = {},
             onMaxSnoozeCountChanged = {},
             onRingtoneChanged = {},
+            onTimerRingtoneChanged = {},
             onAlarmVolumeChanged = {},
             onVolumeEscalationChanged = {},
             onDefaultVibrateChanged = {},

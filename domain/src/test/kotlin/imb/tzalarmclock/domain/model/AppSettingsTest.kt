@@ -21,6 +21,7 @@ class AppSettingsTest {
         assertTrue(defaults.defaultVibrate)
         assertTrue(defaults.use24HourFormat)
         assertEquals(3, defaults.ringTimeoutMinutes)
+        assertNull("timer ringtone falls back to the system alarm sound", defaults.defaultTimerRingtoneUri)
     }
 
     @Test(expected = IllegalArgumentException::class)

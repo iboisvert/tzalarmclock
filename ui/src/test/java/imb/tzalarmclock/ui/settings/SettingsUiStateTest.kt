@@ -28,6 +28,7 @@ class SettingsUiStateTest {
             defaultVibrate = false,
             use24HourFormat = false,
             ringTimeoutMinutes = 20,
+            defaultTimerRingtoneUri = "content://some/timer-ringtone",
         )
 
         val state = buildSettingsUiState(settings)

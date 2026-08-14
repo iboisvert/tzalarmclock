@@ -26,6 +26,10 @@ import java.time.ZoneId
  *   explicit tap on Snooze, if [maxSnoozeCount] allows one more; otherwise
  *   dismisses it, the same as an explicit hold-to-dismiss (non-recurring
  *   alarms disable, snooze state clears) — either way, without a tap.
+ * @param defaultTimerRingtoneUri ring tone `TimerRingingService` plays for
+ *   every timer; `null` means the system default alarm sound. Timers have
+ *   no per-timer override the way [Alarm.ringtoneUri] does — the spec adds
+ *   only this one global setting for timers.
  */
 data class AppSettings(
     val homeZone: ZoneId? = null,
@@ -37,6 +41,7 @@ data class AppSettings(
     val defaultVibrate: Boolean = true,
     val use24HourFormat: Boolean = true,
     val ringTimeoutMinutes: Int = DEFAULT_RING_TIMEOUT_MINUTES,
+    val defaultTimerRingtoneUri: String? = null,
 ) {
     init {
         require(snoozePeriodMinutes > 0) {

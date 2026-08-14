@@ -66,6 +66,7 @@ class DataStoreSettingsRepositoryTest {
             defaultVibrate = false,
             use24HourFormat = false,
             ringTimeoutMinutes = 8,
+            defaultTimerRingtoneUri = "content://media/internal/audio/media/4",
         )
 
         repository.save(settings)
@@ -80,14 +81,16 @@ class DataStoreSettingsRepositoryTest {
             AppSettings(
                 homeZone = ZoneId.of("America/Toronto"),
                 defaultRingtoneUri = "content://media/internal/audio/media/3",
+                defaultTimerRingtoneUri = "content://media/internal/audio/media/4",
             ),
         )
 
-        repository.save(AppSettings(homeZone = null, defaultRingtoneUri = null))
+        repository.save(AppSettings(homeZone = null, defaultRingtoneUri = null, defaultTimerRingtoneUri = null))
 
         val settings = repository.getSettings()
         assertNull("home zone should follow the device again", settings.homeZone)
         assertNull("ringtone should fall back to the system default", settings.defaultRingtoneUri)
+        assertNull("timer ringtone should fall back to the system default", settings.defaultTimerRingtoneUri)
     }
 
     @Test

@@ -45,6 +45,7 @@ class SettingsMappingTest {
             SettingsKeys.DEFAULT_VIBRATE to false,
             SettingsKeys.USE_24_HOUR_FORMAT to false,
             SettingsKeys.RING_TIMEOUT_MINUTES to 8,
+            SettingsKeys.DEFAULT_TIMER_RINGTONE_URI to "content://ringtone/2",
         )
 
         assertEquals(
@@ -58,6 +59,7 @@ class SettingsMappingTest {
                 defaultVibrate = false,
                 use24HourFormat = false,
                 ringTimeoutMinutes = 8,
+                defaultTimerRingtoneUri = "content://ringtone/2",
             ),
             prefs.toAppSettings(),
         )

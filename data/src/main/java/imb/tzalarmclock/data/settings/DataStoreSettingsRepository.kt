@@ -40,6 +40,7 @@ class DataStoreSettingsRepository(
             prefs[SettingsKeys.DEFAULT_VIBRATE] = settings.defaultVibrate
             prefs[SettingsKeys.USE_24_HOUR_FORMAT] = settings.use24HourFormat
             prefs[SettingsKeys.RING_TIMEOUT_MINUTES] = settings.ringTimeoutMinutes
+            prefs.setOrRemove(SettingsKeys.DEFAULT_TIMER_RINGTONE_URI, settings.defaultTimerRingtoneUri)
         }
     }
 }
@@ -64,5 +65,6 @@ internal fun Preferences.toAppSettings(): AppSettings {
         defaultVibrate = this[SettingsKeys.DEFAULT_VIBRATE] ?: defaults.defaultVibrate,
         use24HourFormat = this[SettingsKeys.USE_24_HOUR_FORMAT] ?: defaults.use24HourFormat,
         ringTimeoutMinutes = this[SettingsKeys.RING_TIMEOUT_MINUTES] ?: defaults.ringTimeoutMinutes,
+        defaultTimerRingtoneUri = this[SettingsKeys.DEFAULT_TIMER_RINGTONE_URI],
     )
 }
