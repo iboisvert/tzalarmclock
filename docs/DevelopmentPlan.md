@@ -6,8 +6,12 @@ covers, the technical approach, and an exit criteria checklist. Assumptions
 made to resolve ambiguity in the spec are called out inline (⚠) and
 summarized in [Assumptions](#assumptions-log) at the end.
 
-Phase 2 items from the spec are intentionally excluded from staging below —
-see [Phase 2 backlog](#phase-2-backlog).
+Phase 2 of the spec (multi-timer countdown functionality) is staged below as
+Stages 13-19. Phase 3 items remain intentionally excluded from staging — see
+[Phase 3 backlog](#phase-3-backlog). (This plan originally labelled that
+backlog "Phase 2"; `Requirements.md` has since grown its own Phase 2 section
+—timers — pushing the old Phase 2 content to Phase 3. The backlog's contents
+are unchanged, only its name and the phase number below have caught up.)
 
 ## Guiding technical decisions
 
@@ -34,6 +38,16 @@ stages build on. ⚠ = assumption.
 - ⚠ **Dev process**: Work on each phase will be committed to a branch from main
   called "phaseN" where N is the number of the phase.
 - Root package: `imb.tzalarmclock` (per spec).
+- ⚠ **Timer module structure** (Stages 13-19): a new `timer` Gradle module
+  mirrors `alarm`'s internal shape (`schedule`/`ringing`/`receiver`
+  packages) rather than extending `alarm` itself. Timers share the app's
+  scheduling *primitive* (`AlarmManager.setAlarmClock()`, same rationale as
+  the alarms decision above) but have a materially different state machine
+  — pause/resume, no recurrence, no time zone — and `alarm` is a
+  domain-specific module name, not a generic "schedulable thing" module.
+  Some duplication of the scheduler/receiver/PendingIntent-per-id shape is
+  accepted as the cost of keeping both modules' names honest and their
+  state machines uncoupled.
 
 ---
 
@@ -667,7 +681,305 @@ placeholder data, on at least two screen sizes.
 
 ---
 
-## Phase 2 backlog
+## Phase 2 — Multi-timer countdown functionality
+
+Stages 13-19 sequence `docs/Requirements.md`'s Phase 2 section (multi-timer
+countdown functionality, independent of alarms) the same way Stages 0-12
+sequenced Phase 1. They follow the same module boundaries and patterns
+established there (see the timer-module guiding decision above) rather than
+re-deriving an architecture from scratch.
+
+## Stage 13 — Timer data model & persistence
+
+**Goal:** the `Timer` entity exists and is durable across process death and
+restarts, independent of scheduling or UI — mirrors Stage 1's role for
+alarms.
+
+Covers: *Timers Summary Page* (data half), *Adding a Timer* (data half),
+*Persistence*.
+
+- `Timer` entity: id, configured duration (a single seconds/millis value —
+  the spec's three h/min/s entry fields are an entry-form UX, not a schema
+  requirement), state (`STOPPED | RUNNING | PAUSED | EXPIRED`, see Stage 14
+  for the state machine), remaining duration as of the last pause (used only
+  in `PAUSED`), end instant (`Instant`, used only in `RUNNING` — the fixed
+  wall-clock time this timer next fires, analogous to what
+  `AndroidAlarmScheduler`/`ArmedAlarmRegistry` already track per alarm),
+  creation timestamp (for list ordering, see Stage 14).
+  - ⚠ *No name field*: unlike `Alarm`, the spec's Add Timer section only
+    takes h/min/s — there's nowhere in the spec a user enters a timer name,
+    and neither the Summary nor Ringing page descriptions show one.
+  - ⚠ *End instant, not just remaining-at-start, is persisted*: required for
+    the reboot/hard-stop survival requirement below — a relative countdown
+    stored at start time wouldn't know how long the device was off, but a
+    fixed instant needs no adjustment. Same reasoning `SnoozeRegistry`
+    documents for why it's on disk rather than in memory.
+- New Room entity + DAO added to the existing `data` module's
+  `TzAlarmClockDatabase` (currently version 1, `AlarmEntity` only) — this is
+  the project's first schema change past its initial version, so this stage
+  also writes the project's first real Room `Migration` rather than just
+  bumping the version number, since a destructive-fallback migration would
+  wipe existing alarms too.
+- `TimerRepository` (domain interface + Room-backed impl), same Flow-based
+  observe-and-write shape as `AlarmRepository`, so later UI stages can
+  observe reactively.
+
+**Exit criteria:** CRUD and state-field round-trips on a `Timer` verified in
+instrumented tests; a migration test confirms existing `Alarm` rows survive
+the schema bump untouched; timer data survives an app restart.
+
+---
+
+## Stage 14 — Timer countdown/state engine
+
+**Goal:** pure, unit-testable logic for how a timer's remaining time and
+state evolve over time and user action — mirrors Stage 2's role for alarms.
+
+Covers: *Timers Summary Page* (remaining-time display), *Adding a Timer*
+(default duration), the start/pause/resume/reset control semantics.
+
+- Pure Kotlin, no Android dependency, alongside Stage 2's `domain/schedule`:
+  - `remaining(timer, now)`: `endInstant - now` (clamped to zero) when
+    `RUNNING`; the stored paused-remaining value when `PAUSED`; the full
+    configured duration when `STOPPED`; zero when `EXPIRED`.
+  - State-transition functions, each a pure `(Timer, Instant) -> Timer`:
+    - ⚠ **Start** (`STOPPED → RUNNING`): sets `endInstant = now +
+      configuredDuration`.
+    - ⚠ **Pause** (`RUNNING → PAUSED`): stores `remaining(timer, now)`,
+      clears `endInstant`.
+    - ⚠ **Resume** (`PAUSED → RUNNING`): recomputes `endInstant = now +
+      storedRemaining` — mirrors how Stage 6's snooze recomputes an instant
+      from "now" rather than replaying an original schedule.
+    - ⚠ **Reset** (any state `→ STOPPED`): restores the full configured
+      duration, discarding any in-progress or expired countdown — usable
+      from `RUNNING`, `PAUSED`, or `EXPIRED` alike.
+- Countdown display formatter: plain `H:MM:SS` (or `MM:SS` under an hour).
+  - ⚠ Deliberately a *different* formatter from `FuzzyCountdown` (Stage 2):
+    the spec's fuzzy d/h/min rounding rule (`docs/Requirements.md:40-54`) is
+    explicitly scoped to the *Alarms* Summary page, and a live-decrementing
+    timer needs second-level precision the fuzzy formatter discards by
+    design.
+- ⚠ *New-timer default state*: a timer created via Add Timer is `STOPPED` at
+  its full configured duration, not auto-started — the spec lists Start as
+  one of the Summary page's own per-timer controls, implying it's a
+  separate, explicit action from creation.
+- ⚠ *Post-expiry state*: a running timer reaching zero moves to a distinct
+  `EXPIRED` state (pinned at zero) rather than silently reverting to
+  `STOPPED` — Reset is the only way back to a fresh countdown, mirroring how
+  a non-recurring alarm needs an explicit dismiss rather than quietly
+  re-arming. **Flagged for product decision**, same open-question status as
+  assumption #9 (disabled-alarm placement).
+- ⚠ *List ordering*: the spec defines Summary sort order for alarms
+  explicitly but not for timers. Placeholder: running/paused timers first
+  (ascending remaining time), then stopped/expired timers by creation order.
+  **Flagged for product decision.**
+
+**Exit criteria:** unit test suite covering every state transition (including
+resume-after-pause preserving the exact remaining duration across a
+simulated time gap), the `H:MM:SS`/`MM:SS` formatter, and the
+`STOPPED → RUNNING → EXPIRED` lifecycle, all green with no Android
+dependency.
+
+---
+
+## Stage 15 — OS scheduling integration for timers
+
+**Goal:** a running timer actually fires at the right instant and survives
+restarts independent of whether the app process is alive — mirrors Stage 3's
+role for alarms.
+
+Covers: *Persistence* (ring-survival half), the non-functional requirements
+as they apply to timers.
+
+- New `timer` Gradle module (see the guiding technical decision above) with
+  `TimerScheduler` (interface) + an `AlarmManager`-backed impl: arms the
+  single `endInstant` for every `RUNNING` timer via
+  `AlarmManager.setAlarmClock()` — same primitive and rationale as Stage 3
+  — and cancels the OS alarm for any timer that isn't `RUNNING`. Re-synced
+  on app start and on every `TimerRepository` write, the same idempotent
+  "make the OS match storage" shape as `AlarmScheduler.sync`.
+- `TimerReceiver` (mirrors `AlarmReceiver`): on fire, flips the timer to
+  `EXPIRED` in storage and hands off to a foreground `TimerRingingService`
+  (Stage 17 builds the full ringing UI/playback; this stage's own exit
+  criteria only need an audible ring, the same staging trick Stage 3 used
+  for alarms via an interim notification).
+- `BootReceiver` counterpart: re-arms every `RUNNING` timer after reboot
+  from its persisted `endInstant` — the concrete mechanism behind the
+  spec's "a running timer continues counting down correctly across such an
+  event, and will still ring at the correct time," since `endInstant`
+  (Stage 13) needs no adjustment for how long the device was off.
+- ⚠ *Concurrent expiries*: the spec doesn't say what happens when two
+  timers expire close together. Placeholder, **flagged for product
+  decision**: each expiry gets its own full-screen-intent notification: the
+  exact ringing-*UI* queuing behavior is Stage 17's problem to resolve.
+
+**Exit criteria:** a timer started for +2 minutes rings on a real device
+after (a) a reboot, (b) force-stopping and relaunching the app, (c) with
+battery optimization enabled for the app — the same three of Stage 3's four
+cases that apply (timers have no time-zone concept, so there's no TZ-change
+case here).
+
+---
+
+## Stage 16 — Navigation shell: Alarms/Timers switch + Timers Summary page
+
+**Goal:** the app's title bar can switch between Alarms and Timers, and the
+Timers Summary page shows real (Stage 13-15-backed) data with full list
+controls — mirrors Stage 4's role for alarms plus the new top-level nav.
+
+Covers: *Navigation*, *Timers Summary Page*.
+
+- `TopAppBar` gains two icon buttons (⏰ Alarms, ⏱ Timers) beside the
+  existing Settings gear, added to **both** the Alarms Summary and the new
+  Timers Summary screens.
+  - ⚠ *Active page's own icon*: spec doesn't say whether it's hidden,
+    disabled, or left as a tappable no-op. Treated as always-visible and
+    always-tappable (tapping the current page's own icon just re-navigates
+    to itself), the simplest option and consistent with how the existing
+    Settings icon behaves.
+- New `Routes.Timers` destination in `TzAlarmClockNavHost` (mirrors
+  `Routes.Summary`); a new `ui/timers` package (`TimersScreen`,
+  `TimersViewModel`) following the same `AndroidViewModel` +
+  repository-`Flow` pattern as `SummaryViewModel`, but on a faster (~1s, not
+  30s) ticker, since seconds-level precision matters for a countdown in a
+  way it doesn't for an alarm's fuzzy countdown.
+- Per-timer row: remaining time (Stage 14's formatter, live-ticking) plus
+  Start/Pause-Resume/Reset/Delete controls per the spec's exact list.
+  - ⚠ *Which controls show when*: Start only when `STOPPED`; Pause when
+    `RUNNING`; Resume when `PAUSED`; Reset always available (Stage 14's
+    "usable from any state" design); Delete always available — not
+    explicit in the spec beyond naming the four controls, but the natural
+    state-gated mapping given Stage 14's state machine.
+  - ⚠ *No delete confirmation*: deliberately inconsistent with alarm
+    deletion (assumption #13) — a timer is cheap and fast to recreate
+    (three number fields, no name/recurrence/zone to re-enter), so losing
+    one by mistake is low-stakes by comparison.
+- **Add Timer**: a control (the spec's own naming) opens the entry form —
+  three numeric fields labelled h/min/s, tap-to-select-all-on-focus (so
+  typing replaces rather than appends), numeric keyboard, defaulting to 0h
+  5min 0s per spec; an empty field reads as 0. Confirming creates a new
+  `STOPPED` timer at that duration and returns to the list.
+  - ⚠ No explicit Cancel is specified for this form (unlike the Details
+    page's Stage 11 buttons) — treated as a lightweight dismissible
+    dialog/inline affordance with no side effects if abandoned, not a full
+    navigation destination needing Stage 11-style dirty-state handling,
+    since the spec's Add Timer section reads as a small entry form rather
+    than a page.
+
+**Exit criteria:** starting a timer counts down live and rings at expiry
+(Stage 15); pause/resume preserves the exact remaining time across a real
+elapsed gap; reset returns a running or expired timer to its original
+configured duration; deleting a timer removes its row and cancels any armed
+OS alarm; the Alarms/Timers icon buttons navigate correctly from both
+Summary pages; a newly-added timer defaults to 0h 5min 0s with each field
+pre-selected on tap.
+
+---
+
+## Stage 17 — Timer Ringing page
+
+**Goal:** the page shown when a timer expires — mirrors Stage 6's role for
+alarms.
+
+Covers: *Timer Ringing Behavior*.
+
+- Full-screen `TimerRingingActivity` (`app` module) launched via
+  full-screen-intent notification from `TimerRingingService` (`timer`
+  module), same `showWhenLocked`/`turnScreenOn` shape as `RingingActivity`,
+  showing over the lock screen or on top of other apps per spec.
+- Foreground service plays the **default timer ring tone** (new setting,
+  Stage 18 — not any alarm-level ringtone), at the alarm volume/escalation
+  settings.
+  - ⚠ *Shared volume/escalation/vibration settings*: the spec adds only a
+    timer *ringtone* setting, nothing else for timers — volume, escalation,
+    and vibrate-if-capable all reuse the existing alarm-level `AppSettings`
+    fields as-is rather than being duplicated per timer-vs-alarm.
+- ⚠ *Dismiss only, no Snooze*: the spec's Timer Ringing Behavior section
+  says the page "behaves like the Alarm Ringing Page" only for
+  lock-screen/foreground/notification/playback purposes, then separately
+  gives timers their own control set (Start/Pause/Resume/Reset/Delete on
+  the Summary page) with no mention of snoozing a *ringing* timer. Treated
+  as Dismiss-only: dismissing an expired timer moves it to `STOPPED` at its
+  full original duration (ready to be started again), not left pinned at
+  `EXPIRED`. Same accidental-stop mitigation as alarms (hold-to-dismiss)
+  applies — the usability rationale (reduced visibility/cognition while
+  something is ringing) isn't alarm-specific.
+- ⚠ *Concurrent-expiry UI*: per Stage 15's placeholder, a second timer
+  expiring while this page is already showing queues behind the current one
+  (its own full-screen-intent notification stays pending) rather than
+  interrupting or stacking activities — simplest safe behavior, **flagged
+  for product decision** like the plan's other open placeholders.
+
+**Exit criteria:** manual test on a real device with screen off and DND
+enabled: an expired timer displays, sounds, and vibrates (if enabled)
+exactly like an alarm does today; dismiss returns the timer to a fresh,
+restartable state on the Timers Summary page.
+
+---
+
+## Stage 18 — App Settings: default timer ring tone
+
+**Goal:** the one new setting Phase 2 adds gets a UI and is wired through —
+mirrors Stage 7's role for alarms.
+
+Covers: *Timer Ring Tone*, *App Settings* (extension).
+
+- `AppSettings` gains a tenth field, `defaultTimerRingtoneUri: String?`
+  (nullable → falls back to the system default alarm sound, same shape as
+  the existing `defaultRingtoneUri`), persisted via the same DataStore key
+  pattern (`SettingsKeys`). This is the first `AppSettings` schema change
+  since `ringTimeoutMinutes` (assumption #24) and follows the same
+  precedent: an additive nullable-or-defaulted field, no migration needed
+  since DataStore Preferences has no schema to migrate.
+- Settings page gains a "Default timer ring tone" row next to the existing
+  "Default ring tone" (alarm) row, reusing the existing `RingtonePickerRow`
+  component (`ui/common`) unmodified — it's already parameterized by a
+  fallback URI (per Stage 7) for exactly this kind of second use.
+
+**Exit criteria:** picking a timer ringtone in Settings and reopening the
+app shows the persisted value; a newly-expiring timer plays that ringtone
+(Stage 17), not the alarm default.
+
+---
+
+## Stage 19 — Timers reliability & polish pass
+
+**Goal:** close the same category of gaps Stages 8/9/12 closed for alarms,
+scoped to what Phase 2 actually adds — lighter than those three combined,
+since timers reuse most of the app's existing infrastructure (theming,
+accessibility patterns, R8 config, CI) rather than introducing new
+categories of risk.
+
+- DND/silent-bypass and battery-efficiency audits, scoped to
+  `TimerScheduler`/`TimerRingingService`: confirm the same
+  `AudioAttributes.USAGE_ALARM` + high-importance-channel configuration
+  Stage 9 verified for alarms also holds for the new timer notification
+  channel, and that no polling runs except while a timer is actively
+  `RUNNING` or ringing.
+- Accessibility: `TimerRingingActivity`'s hold-to-dismiss gets the same
+  `semantics { onLongClick(...) }` treatment Stage 12 Task 2 added for
+  alarms, rather than rediscovering the same gap independently.
+- Responsive layout: Add Timer's three-field h/min/s row checked at the
+  same 360×640dp / landscape matrix Stage 12 used for Details — three
+  side-by-side numeric fields plus labels is a narrow-width risk this app
+  hasn't had before.
+- Empty state: Timers Summary shows an equivalent of Summary's "No alarms
+  yet." for a zero-timer list.
+- R8/release build: confirm the new `timer` module's entities/receivers/
+  services survive shrinking the same way Stage 10 confirmed for `alarm`
+  (an explicit spot-check, not an assumption that Room/KSP's existing
+  consumer rules automatically cover a same-shaped new module).
+
+**Exit criteria:** fresh-install walkthrough of the Timers Summary, Add
+Timer, and Timer Ringing pages with no placeholder data, on at least two
+screen sizes; a release-variant (`assembleRelease`) install exercises
+create/start/pause/resume/reset/delete/expire with zero crashes; the same
+`uiautomator` long-clickable check Stage 12 used confirms the Timer Ringing
+dismiss gesture has an accessible equivalent.
+
+---
+
+## Phase 3 backlog
 
 Explicitly out of scope for staging above, per the spec's own phase split.
 Noted here only so later re-planning starts from the same place:
@@ -781,3 +1093,46 @@ Consolidated list of the ⚠ items above, for quick review/sign-off:
     `RingingViewModel`'s existing 1-second tick polls it (alongside the
     snooze count it already polled) to finish the screen once the service
     ends the cycle without a tap here having caused it.
+25. A `Timer` has no name field — only a configured h/min/s duration, per the
+    spec's Add Timer section (Stage 13).
+26. A running timer's fixed end instant is persisted (not just its
+    remaining-at-start duration) so it survives reboot/hard-stop with the
+    correct fire time, no adjustment needed for elapsed downtime (Stage 13).
+27. Timer state machine: `STOPPED` (fresh, full duration) → `RUNNING` ⇄
+    `PAUSED`, `RUNNING` → `EXPIRED` on its own, and Reset returns to
+    `STOPPED` from any state; a newly-created timer starts `STOPPED`, not
+    auto-started (Stage 14).
+28. Timer countdown display uses a plain `H:MM:SS`/`MM:SS` formatter,
+    deliberately distinct from `FuzzyCountdown`, since the spec's fuzzy
+    d/h/min rounding rule is scoped to the Alarms Summary page only
+    (Stage 14).
+29. Timers Summary list ordering (unspecified by the spec, unlike alarms'
+    explicit ascending time-to-ring): running/paused timers first by
+    ascending remaining time, then stopped/expired timers by creation order
+    — placeholder for a product decision (Stage 14), same open status as
+    item 9.
+30. A new `timer` Gradle module mirrors `alarm`'s internal shape rather than
+    extending `alarm` itself, accepting some duplication of the
+    scheduler/receiver/PendingIntent-per-id pattern to keep both modules'
+    names honest and state machines uncoupled (Stage 15, and the guiding
+    technical decisions section above).
+31. Concurrent timer expiries each get their own full-screen-intent
+    notification and queue rather than interrupt each other's ringing UI —
+    placeholder for a product decision (Stages 15/17).
+32. The title bar's Alarms/Timers icon buttons are always visible and
+    tappable, including on the page that's already active (a no-op tap) —
+    the spec doesn't say whether the active page's own icon should hide or
+    disable instead (Stage 16).
+33. Timer deletion has no confirmation step, deliberately inconsistent with
+    alarm deletion (item 13), since a timer is cheap and fast to recreate
+    (Stage 16).
+34. Add Timer's entry form has no explicit Cancel affordance — treated as a
+    lightweight dismissible dialog with no side effects if abandoned, not a
+    full page needing Stage-11-style dirty-state handling (Stage 16).
+35. Timer Ringing is Dismiss-only, with no Snooze — the spec names
+    Start/Pause/Resume/Reset/Delete as the Timers Summary controls and never
+    mentions snoozing a ringing timer; dismiss returns the timer to
+    `STOPPED` at its full original duration (Stage 17).
+36. Timers reuse the existing alarm-level volume, escalation, and
+    default-vibrate settings rather than getting their own — the spec adds
+    only a timer *ringtone* setting (Stage 17).

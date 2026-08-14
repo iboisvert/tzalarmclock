@@ -155,6 +155,63 @@ if there are no future occurrences of the alarm (i.e. if the alarm is not recurr
 then the alarm will change to a disabled state 
 
 ## Phase 2
+Work for the next project phase: add multi-timer countdown functionality
+to the app, independent of alarms.
+
+### Navigation
+The app title bar gains two icon buttons, placed beside the existing
+settings icon button:
+- An Alarms icon button (⏰) that navigates to the Alarms Summary page
+- A Timers icon button (⏱) that navigates to the new Timers Summary page
+
+These icon buttons let the user switch between the Alarms and Timers
+pages directly from the title bar.
+
+### Timers Summary Page
+The Timers Summary page shows a list of the user's timers. The user
+may run multiple timers concurrently; each timer counts down
+independently. For each timer, the following is shown:
+- Remaining time, counting down live while the timer is running
+- Controls to start, pause/resume, reset, and delete the timer
+
+An "Add Timer" control opens the timer entry fields described below
+to create a new timer.
+
+### Adding a Timer
+The user enters a timer duration using three numeric input fields,
+labelled h (hours), min (minutes), and s (seconds):
+`x h  y min  z s`
+Each field accepts a non-negative integer count of hours, minutes, or
+seconds respectively. An empty field is equivalent to 0.
+
+The default timer duration, shown when the Add Timer fields are first
+presented, is 5 minutes (i.e. h=0, min=5, s=0).
+
+When the user taps a field, the field's existing value is selected
+(highlighted), so that the next input the user types replaces the
+existing value rather than being appended to it. The device's numeric
+keyboard is used for input into these fields.
+
+### Timer Ring Tone
+Timers use a ring tone that is configured separately from alarms.
+Unlike alarms, an individual timer does not need its own configurable
+ring tone; instead, a single global default timer ring tone applies
+to all timers. This adds a new App Setting, Default timer ring tone,
+alongside the existing (alarm) Default ring tone.
+
+### Timer Ringing Behavior
+When a timer expires, it rings on a Timer Ringing Page that behaves
+like the Alarm Ringing Page (see above): it activates over the lock
+screen if the phone is locked, or on top of other apps if the phone
+is unlocked, and it raises a notification. The device plays the
+default timer ring tone.
+
+### Persistence
+Timers persist through an app hard stop and through device reboots.
+A running timer continues counting down correctly across such an
+event, and will still ring at the correct time.
+
+## Phase 3
 Work for the next project phase:
 - The alarm time for different days of a recurring alarm can be set independently.
   So, for example, the alarm may ring at 0900 on Tuesday and 1000 on Wednesday.
