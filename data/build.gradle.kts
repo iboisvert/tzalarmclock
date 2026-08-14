@@ -20,6 +20,15 @@ android {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
     }
+
+    // Makes the exported schema baselines available at runtime to Room's
+    // MigrationTestHelper, which needs the pre-migration schema as an asset
+    // to construct the "old" version of the database from.
+    sourceSets {
+        getByName("androidTest") {
+            assets.srcDir("$projectDir/schemas")
+        }
+    }
 }
 
 // Export the Room schema so migrations in later stages have a baseline to diff against.

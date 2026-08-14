@@ -10,7 +10,7 @@ import androidx.room.RoomDatabase
  * can be written against a checked-in baseline.
  */
 @Database(
-    entities = [AlarmEntity::class],
+    entities = [AlarmEntity::class, TimerEntity::class],
     version = TzAlarmClockDatabase.VERSION,
     exportSchema = true,
 )
@@ -18,8 +18,10 @@ abstract class TzAlarmClockDatabase : RoomDatabase() {
 
     abstract fun alarmDao(): AlarmDao
 
+    abstract fun timerDao(): TimerDao
+
     companion object {
-        const val VERSION = 1
+        const val VERSION = 2
         const val NAME = "tzalarmclock.db"
     }
 }

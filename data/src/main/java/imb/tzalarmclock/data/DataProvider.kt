@@ -6,12 +6,15 @@ import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.preferencesDataStoreFile
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import androidx.room.Room
+import imb.tzalarmclock.data.db.MIGRATION_1_2
 import imb.tzalarmclock.data.db.TzAlarmClockDatabase
 import imb.tzalarmclock.data.repository.RoomAlarmRepository
+import imb.tzalarmclock.data.repository.RoomTimerRepository
 import imb.tzalarmclock.data.settings.DataStoreSettingsRepository
 import imb.tzalarmclock.data.settings.SettingsKeys
 import imb.tzalarmclock.domain.repository.AlarmRepository
 import imb.tzalarmclock.domain.repository.SettingsRepository
+import imb.tzalarmclock.domain.repository.TimerRepository
 
 /**
  * Process-wide singletons for the persistence layer.
@@ -32,6 +35,9 @@ object DataProvider {
     fun alarmRepository(context: Context): AlarmRepository =
         RoomAlarmRepository(database(context).alarmDao())
 
+    fun timerRepository(context: Context): TimerRepository =
+        RoomTimerRepository(database(context).timerDao())
+
     fun settingsRepository(context: Context): SettingsRepository =
         DataStoreSettingsRepository(settingsDataStore(context))
 
@@ -41,7 +47,7 @@ object DataProvider {
                 context.applicationContext,
                 TzAlarmClockDatabase::class.java,
                 TzAlarmClockDatabase.NAME,
-            ).build().also { database = it }
+            ).addMigrations(MIGRATION_1_2).build().also { database = it }
         }
 
     private fun settingsDataStore(context: Context): DataStore<Preferences> =
