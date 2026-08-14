@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!--
+      Duplicated from the `alarm` module's manifest, not inherited from it —
+      this module doesn't depend on `alarm` (see the dev plan's timer-module
+      guiding decision), and its own instrumentation tests only merge this
+      manifest, not `alarm`'s. In the real app both modules' manifests merge
+      into one, so this is belt-and-suspenders there but load-bearing here.
+    -->
+    <uses-permission
+        android:name="android.permission.SCHEDULE_EXACT_ALARM"
+        android:maxSdkVersion="32" />
+    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
+
+    <application>
+
+        <!--
+          Not exported: only AlarmManager delivers to it, via a PendingIntent
+          we created, so nothing outside the app has any business firing it.
+        -->
+        <receiver
+            android:name=".receiver.TimerReceiver"
+            android:enabled="true"
+            android:exported="false" />
+
+        <receiver
+            android:name=".receiver.BootReceiver"
+            android:enabled="true"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
+
+        <!--
+          Not exported: only started via an explicit Intent from TimerReceiver
+          or the ringing activity, both within this app.
+        -->
+        <service
+            android:name=".ringing.TimerRingingService"
+            android:enabled="true"
+            android:exported="false"
+            android:foregroundServiceType="mediaPlayback" />
+
+    </application>
+
+</manifest>

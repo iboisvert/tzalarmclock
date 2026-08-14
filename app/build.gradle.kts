@@ -9,7 +9,7 @@ plugins {
     id("keystore-props")
 }
 
-val keystoreProperties: Properties by extra
+val keystoreProperties: Properties? by extra
 
 android {
     namespace = "imb.tzalarmclock"
@@ -35,17 +35,27 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
-    signingConfigs {
-        create("config") {
-            keyAlias = keystoreProperties["keyAlias"] as String
-            keyPassword = keystoreProperties["keyPassword"] as String
-            storeFile = rootProject.file("secrets/${keystoreProperties["storeFile"]}")
-            storePassword = keystoreProperties["storePassword"] as String
+    // Only present when the private `secrets` submodule is checked out (see
+    // keystore-props.gradle.kts). A contributor without access to it can
+    // still build/test everything except a signed release - assembleRelease
+    // and bundleRelease are made to fail loudly for that case below, rather
+    // than silently producing an unsigned APK.
+    val nonNullKeystoreProperties = keystoreProperties
+    if (nonNullKeystoreProperties != null) {
+        signingConfigs {
+            create("config") {
+                keyAlias = nonNullKeystoreProperties["keyAlias"] as String
+                keyPassword = nonNullKeystoreProperties["keyPassword"] as String
+                storeFile = rootProject.file("secrets/${nonNullKeystoreProperties["storeFile"]}")
+                storePassword = nonNullKeystoreProperties["storePassword"] as String
+            }
         }
     }
     buildTypes {
         release {
-            signingConfig = signingConfigs.getByName("config")
+            if (nonNullKeystoreProperties != null) {
+                signingConfig = signingConfigs.getByName("config")
+            }
             optimization {
                 enable = true
             }
@@ -61,10 +71,23 @@ android {
     }
 }
 
+if (keystoreProperties == null) {
+    tasks.matching { it.name == "assembleRelease" || it.name == "bundleRelease" }.configureEach {
+        doFirst {
+            throw GradleException(
+                "Missing secrets/keystore.properties - a signed release build " +
+                    "needs the private `secrets` submodule (run `git submodule " +
+                    "update --init`). assembleDebug doesn't need it."
+            )
+        }
+    }
+}
+
 dependencies {
     implementation(project(":domain"))
     implementation(project(":data"))
     implementation(project(":alarm"))
+    implementation(project(":timer"))
     implementation(project(":ui"))
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.activity.compose)

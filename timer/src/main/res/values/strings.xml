@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="timer_channel_name">Timers</string>
+    <string name="timer_channel_description">Rings when a timer expires.</string>
+    <string name="timer_fired_text">Your timer is up.</string>
+    <string name="timer_dismiss_action">Dismiss</string>
+</resources>
