@@ -15,7 +15,9 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Alarm
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
@@ -39,6 +41,8 @@ import imb.tzalarmclock.ui.theme.TzAlarmClockTheme
 @Composable
 fun SummaryScreen(
     onAddAlarm: () -> Unit,
+    onOpenAlarms: () -> Unit,
+    onOpenTimers: () -> Unit,
     onOpenSettings: () -> Unit,
     onEditAlarm: (Long) -> Unit,
     modifier: Modifier = Modifier,
@@ -48,6 +52,8 @@ fun SummaryScreen(
     SummaryScreen(
         uiState = uiState,
         onAddAlarm = onAddAlarm,
+        onOpenAlarms = onOpenAlarms,
+        onOpenTimers = onOpenTimers,
         onOpenSettings = onOpenSettings,
         onEditAlarm = onEditAlarm,
         onSetEnabled = viewModel::setEnabled,
@@ -60,6 +66,8 @@ fun SummaryScreen(
 private fun SummaryScreen(
     uiState: SummaryUiState,
     onAddAlarm: () -> Unit,
+    onOpenAlarms: () -> Unit,
+    onOpenTimers: () -> Unit,
     onOpenSettings: () -> Unit,
     onEditAlarm: (Long) -> Unit,
     onSetEnabled: (Long, Boolean) -> Unit,
@@ -71,6 +79,15 @@ private fun SummaryScreen(
             TopAppBar(
                 title = { Text("Alarms") },
                 actions = {
+                    // Always visible and tappable, including this page's own
+                    // icon (a no-op re-navigation) — see the dev plan's
+                    // active-nav-icon assumption.
+                    IconButton(onClick = onOpenAlarms) {
+                        Icon(Icons.Filled.Alarm, contentDescription = "Alarms")
+                    }
+                    IconButton(onClick = onOpenTimers) {
+                        Icon(Icons.Filled.Timer, contentDescription = "Timers")
+                    }
                     IconButton(onClick = onOpenSettings) {
                         Icon(Icons.Filled.Settings, contentDescription = "Settings")
                     }
@@ -177,6 +194,8 @@ private fun SummaryScreenEmptyPreview() {
         SummaryScreen(
             uiState = SummaryUiState(),
             onAddAlarm = {},
+            onOpenAlarms = {},
+            onOpenTimers = {},
             onOpenSettings = {},
             onEditAlarm = {},
             onSetEnabled = { _, _ -> },
@@ -222,6 +241,8 @@ private fun SummaryScreenPopulatedPreview() {
                 ),
             ),
             onAddAlarm = {},
+            onOpenAlarms = {},
+            onOpenTimers = {},
             onOpenSettings = {},
             onEditAlarm = {},
             onSetEnabled = { _, _ -> },

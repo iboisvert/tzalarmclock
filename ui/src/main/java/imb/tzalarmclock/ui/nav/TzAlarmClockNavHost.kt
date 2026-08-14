@@ -11,6 +11,7 @@ import androidx.navigation.navArgument
 import imb.tzalarmclock.ui.details.DetailsScreen
 import imb.tzalarmclock.ui.settings.SettingsScreen
 import imb.tzalarmclock.ui.summary.SummaryScreen
+import imb.tzalarmclock.ui.timers.TimersScreen
 
 @Composable
 fun TzAlarmClockNavHost(
@@ -27,6 +28,15 @@ fun TzAlarmClockNavHost(
             SummaryScreen(
                 onAddAlarm = { navController.navigate(Routes.Details.buildRoute()) },
                 onEditAlarm = { alarmId -> navController.navigate(Routes.Details.buildRoute(alarmId)) },
+                onOpenAlarms = { navController.navigate(Routes.Summary.route) },
+                onOpenTimers = { navController.navigate(Routes.Timers.route) },
+                onOpenSettings = { navController.navigate(Routes.Settings.route) },
+            )
+        }
+        composable(Routes.Timers.route) {
+            TimersScreen(
+                onOpenAlarms = { navController.navigate(Routes.Summary.route) },
+                onOpenTimers = { navController.navigate(Routes.Timers.route) },
                 onOpenSettings = { navController.navigate(Routes.Settings.route) },
             )
         }

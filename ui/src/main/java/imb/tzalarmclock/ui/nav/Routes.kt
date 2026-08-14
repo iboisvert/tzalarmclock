@@ -3,10 +3,11 @@ package imb.tzalarmclock.ui.nav
 /**
  * Top-level navigation destinations hosted in `MainActivity`'s NavHost.
  *
- * The Ringing page isn't here: it needs to show over the lock screen and on
- * top of other apps regardless of whether this app is even running, so it's a
- * dedicated `RingingActivity` (in the `app` module) launched via full-screen
- * intent, not a stacked destination in this graph.
+ * Neither Ringing page is here: each needs to show over the lock screen and
+ * on top of other apps regardless of whether this app is even running, so
+ * they're dedicated Activities (`RingingActivity`, `TimerRingingActivity` —
+ * both in the `app` module) launched via full-screen intent, not stacked
+ * destinations in this graph.
  */
 sealed class Routes(val route: String) {
     data object Summary : Routes("summary")
@@ -20,4 +21,6 @@ sealed class Routes(val route: String) {
     }
 
     data object Settings : Routes("settings")
+
+    data object Timers : Routes("timers")
 }
