@@ -124,6 +124,8 @@ private fun SettingsScreen(
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(20.dp),
         ) {
+            SettingsSectionHeader("General")
+
             EditableRow(
                 label = "Home time zone",
                 value = uiState.homeZone?.id ?: "Follows device (no home zone)",
@@ -131,7 +133,17 @@ private fun SettingsScreen(
                 onClear = if (uiState.homeZone != null) ({ onHomeZoneChanged(null) }) else null,
             )
 
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("Time format", style = MaterialTheme.typography.labelMedium)
+                TimeFormatSelector(
+                    use24HourFormat = uiState.use24HourFormat,
+                    onUse24HourFormatChanged = onUse24HourFormatChanged,
+                )
+            }
+
             HorizontalDivider()
+
+            SettingsSectionHeader("Alarm")
 
             StepperRow(
                 label = "Snooze period",
@@ -160,20 +172,11 @@ private fun SettingsScreen(
                 onValueChanged = onRingTimeoutChanged,
             )
 
-            HorizontalDivider()
-
             RingtonePickerRow(
                 label = "Default ringtone",
                 ringtoneUri = uiState.defaultRingtoneUri,
                 fallbackUri = null,
                 onRingtoneChanged = onRingtoneChanged,
-            )
-
-            RingtonePickerRow(
-                label = "Default timer ring tone",
-                ringtoneUri = uiState.defaultTimerRingtoneUri,
-                fallbackUri = null,
-                onRingtoneChanged = onTimerRingtoneChanged,
             )
 
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -191,8 +194,6 @@ private fun SettingsScreen(
                 onCheckedChange = onVolumeEscalationChanged,
             )
 
-            HorizontalDivider()
-
             SwitchRow(
                 label = "Vibrate by default",
                 checked = uiState.defaultVibrate,
@@ -201,13 +202,14 @@ private fun SettingsScreen(
 
             HorizontalDivider()
 
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("Time format", style = MaterialTheme.typography.labelMedium)
-                TimeFormatSelector(
-                    use24HourFormat = uiState.use24HourFormat,
-                    onUse24HourFormatChanged = onUse24HourFormatChanged,
-                )
-            }
+            SettingsSectionHeader("Timer")
+
+            RingtonePickerRow(
+                label = "Default timer ring tone",
+                ringtoneUri = uiState.defaultTimerRingtoneUri,
+                fallbackUri = null,
+                onRingtoneChanged = onTimerRingtoneChanged,
+            )
 
             Text(
                 text = versionInfo,
@@ -228,6 +230,16 @@ private fun SettingsScreen(
             onDismiss = { showZonePicker = false },
         )
     }
+}
+
+/** Groups settings rows below it — e.g. "Alarm" vs. "Timer" — so scanning the page reads as sections, not one flat list. */
+@Composable
+private fun SettingsSectionHeader(title: String) {
+    Text(
+        text = title,
+        style = MaterialTheme.typography.titleSmall,
+        color = MaterialTheme.colorScheme.primary,
+    )
 }
 
 @Composable

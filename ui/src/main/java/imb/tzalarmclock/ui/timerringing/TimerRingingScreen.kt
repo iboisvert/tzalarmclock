@@ -8,6 +8,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.systemBarsPadding
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -22,7 +25,6 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
-import imb.tzalarmclock.ui.common.HoldToDismissButton
 import imb.tzalarmclock.ui.theme.TzAlarmClockTheme
 
 /**
@@ -31,6 +33,12 @@ import imb.tzalarmclock.ui.theme.TzAlarmClockTheme
  * dismiss-only: the spec never mentions snoozing a ringing timer (see the
  * dev plan's assumption log), and a [imb.tzalarmclock.domain.model.Timer]
  * has no name/time/zone/date to show.
+ *
+ * Unlike the alarm Ringing screen, Dismiss here is a single tap rather than
+ * [imb.tzalarmclock.ui.common.HoldToDismissButton]'s hold-to-confirm: a
+ * stray tap silencing a timer is a much lower-stakes mistake than silencing
+ * an alarm, so the "difficult to accidentally stop" requirement doesn't
+ * carry over.
  */
 @Composable
 fun TimerRingingScreen(
@@ -83,13 +91,15 @@ private fun TimerRingingScreen(
                     color = Color.LightGray,
                 )
             }
-            HoldToDismissButton(
-                onDismiss = onDismiss,
-                contentDescription = "Dismiss timer",
+            Button(
+                onClick = onDismiss,
+                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(64.dp),
-            )
+            ) {
+                Text("Dismiss", fontSize = 20.sp)
+            }
         }
     }
 }

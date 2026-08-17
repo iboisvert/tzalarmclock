@@ -15,13 +15,9 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Alarm
-import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
@@ -36,6 +32,8 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import imb.tzalarmclock.domain.summary.AlarmGroup
+import imb.tzalarmclock.ui.common.AppDestination
+import imb.tzalarmclock.ui.common.AppDestinationTabs
 import imb.tzalarmclock.ui.theme.TzAlarmClockTheme
 
 @Composable
@@ -79,18 +77,13 @@ private fun SummaryScreen(
             TopAppBar(
                 title = { Text("Alarms") },
                 actions = {
-                    // Always visible and tappable, including this page's own
-                    // icon (a no-op re-navigation) — see the dev plan's
-                    // active-nav-icon assumption.
-                    IconButton(onClick = onOpenAlarms) {
-                        Icon(Icons.Filled.Alarm, contentDescription = "Alarms")
-                    }
-                    IconButton(onClick = onOpenTimers) {
-                        Icon(Icons.Filled.Timer, contentDescription = "Timers")
-                    }
-                    IconButton(onClick = onOpenSettings) {
-                        Icon(Icons.Filled.Settings, contentDescription = "Settings")
-                    }
+                    AppDestinationTabs(
+                        current = AppDestination.ALARMS,
+                        onOpenAlarms = onOpenAlarms,
+                        onOpenTimers = onOpenTimers,
+                        onOpenSettings = onOpenSettings,
+                        modifier = Modifier.padding(end = 8.dp),
+                    )
                 },
             )
         },

@@ -30,7 +30,7 @@ data class TimerRowUi(
 /** Builds the Timers Summary screen's state from the current timers and instant. */
 fun buildTimersUiState(timers: List<Timer>, now: Instant): TimersUiState =
     TimersUiState(
-        timers = timers.sortedForSummary(now).map { timer ->
+        timers = timers.sortedForSummary().map { timer ->
             TimerRowUi(
                 id = timer.id,
                 remainingLabel = TimerCountdown.format(timer.remaining(now)),

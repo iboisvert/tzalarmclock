@@ -45,18 +45,31 @@ object TimerRingingNotifications {
      * @param contentIntent what tapping the notification body does — the
      *   same destination as [fullScreenIntent], for when it was shown as
      *   heads-up.
+     * @param configuredDurationLabel the fired timer's original configured
+     *   duration (e.g. "5:00"), formatted the same way as the Timer Ringing
+     *   screen's own "5:00 timer" label — `null` for the placeholder
+     *   notification `TimerRingingService` posts via `startForeground()`
+     *   before it has loaded the timer, same reasoning as
+     *   `imb.tzalarmclock.alarm.ringing.RingingNotifications.build`'s
+     *   placeholder `Alarm`.
      */
     fun build(
         context: Context,
         fullScreenIntent: PendingIntent,
         contentIntent: PendingIntent,
         dismissIntent: PendingIntent,
+        configuredDurationLabel: String? = null,
     ): Notification {
         ensureChannel(context)
+        val contentText = if (configuredDurationLabel != null) {
+            context.getString(R.string.timer_fired_text_with_duration, configuredDurationLabel)
+        } else {
+            context.getString(R.string.timer_fired_text)
+        }
         return NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
             .setContentTitle(context.getString(R.string.timer_channel_name))
-            .setContentText(context.getString(R.string.timer_fired_text))
+            .setContentText(contentText)
             .setCategory(NotificationCompat.CATEGORY_ALARM)
             .setPriority(NotificationCompat.PRIORITY_MAX)
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)

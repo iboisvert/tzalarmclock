@@ -1,9 +1,12 @@
 package imb.tzalarmclock.timer.ringing
 
+import android.Manifest
+import android.app.Notification
 import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.content.pm.ServiceInfo
 import android.media.AudioAttributes
 import android.media.MediaPlayer
@@ -16,8 +19,11 @@ import android.os.VibrationAttributes
 import android.os.VibrationEffect
 import android.os.VibratorManager
 import android.util.Log
+import androidx.core.app.NotificationManagerCompat
 import androidx.core.app.ServiceCompat
+import androidx.core.content.ContextCompat
 import imb.tzalarmclock.data.DataProvider
+import imb.tzalarmclock.domain.format.TimerCountdown
 import imb.tzalarmclock.domain.model.AppSettings
 import imb.tzalarmclock.domain.model.Timer
 import imb.tzalarmclock.domain.model.TimerState
@@ -100,6 +106,22 @@ class TimerRingingService : Service() {
 
         scope.launch {
             val settings = DataProvider.settingsRepository(this@TimerRingingService).getSettings()
+            val timer = DataProvider.timerRepository(this@TimerRingingService).getTimer(timerId)
+            if (timer != null) {
+                // Replaces the placeholder posted above, now that the
+                // timer's configured duration is known — same reasoning as
+                // RingingService re-posting once the real alarm name loads.
+                notifyIfAllowed(
+                    TimerRingingNotifications.notificationId(timerId),
+                    TimerRingingNotifications.build(
+                        this@TimerRingingService,
+                        ringingActivityPendingIntent(timerId),
+                        ringingActivityPendingIntent(timerId),
+                        dismissPendingIntent(timerId),
+                        configuredDurationLabel = TimerCountdown.format(timer.configuredDuration),
+                    ),
+                )
+            }
             // Same background-activity-launch caveat as RingingService: only
             // reaches the screen directly when the app is already
             // foreground. The notification's full-screen intent posted
@@ -112,6 +134,18 @@ class TimerRingingService : Service() {
             }
             startPlayback(settings)
             startVibration(settings)
+        }
+    }
+
+    /** [NotificationManagerCompat.notify], permission-checked — mirrors `RingingService.notifyIfAllowed`. */
+    private fun notifyIfAllowed(id: Int, notification: Notification) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
+            ContextCompat.checkSelfPermission(
+                this,
+                Manifest.permission.POST_NOTIFICATIONS,
+            ) == PackageManager.PERMISSION_GRANTED
+        ) {
+            NotificationManagerCompat.from(this).notify(id, notification)
         }
     }
 
