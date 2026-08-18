@@ -31,7 +31,7 @@
           intent), never by the user or another app.
         -->
         <activity
-            android:name=".RingingActivity"
+            android:name=".AlarmRingingActivity"
             android:exported="false"
             android:excludeFromRecents="true"
             android:launchMode="singleInstance"

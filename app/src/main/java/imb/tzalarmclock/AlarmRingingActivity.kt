@@ -22,7 +22,7 @@ import imb.tzalarmclock.ui.theme.TzAlarmClockTheme
  * show-over-lock-screen, turn-the-screen-on — that make no sense for the rest
  * of the app.
  */
-class RingingActivity : ComponentActivity() {
+class AlarmRingingActivity : ComponentActivity() {
 
     /**
      * Lazy because it needs `window`, which isn't set until [onCreate] calls

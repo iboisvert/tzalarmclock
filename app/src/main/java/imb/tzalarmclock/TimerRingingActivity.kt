@@ -15,7 +15,7 @@ import imb.tzalarmclock.ui.timerringing.TimerRingingScreen
 
 /**
  * Hosts the Timer Ringing screen over the lock screen or on top of other
- * apps — mirrors [RingingActivity]'s role for alarms.
+ * apps — mirrors [AlarmRingingActivity]'s role for alarms.
  */
 class TimerRingingActivity : ComponentActivity() {
 
@@ -54,7 +54,7 @@ class TimerRingingActivity : ComponentActivity() {
 
     /**
      * Re-hides the navigation/status bars whenever this window regains
-     * focus — same reasoning as [RingingActivity].
+     * focus — same reasoning as [AlarmRingingActivity].
      */
     override fun onWindowFocusChanged(hasFocus: Boolean) {
         super.onWindowFocusChanged(hasFocus)

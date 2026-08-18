@@ -8,7 +8,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Alarm
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.Timer
+import androidx.compose.material.icons.outlined.Timer
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
@@ -51,7 +51,7 @@ fun AppDestinationTabs(
             onClick = onOpenAlarms,
         )
         DestinationTab(
-            icon = Icons.Filled.Timer,
+            icon = Icons.Outlined.Timer,
             contentDescription = "Timers",
             selected = current == AppDestination.TIMERS,
             onClick = onOpenTimers,
@@ -74,7 +74,7 @@ private fun DestinationTab(
 ) {
     Surface(
         onClick = onClick,
-        shape = RoundedCornerShape(50),
+        shape = RoundedCornerShape(25),
         color = if (selected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
         contentColor = if (selected) {
             MaterialTheme.colorScheme.onPrimaryContainer
