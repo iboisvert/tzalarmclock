@@ -38,10 +38,8 @@ class TimerReceiverTest {
 
     @After
     fun cleanUp() = runBlocking {
-        created.forEach {
-            context.stopService(TimerRingingService.dismissIntent(context, it))
-            timers.delete(it)
-        }
+        context.stopService(TimerRingingService.dismissAllIntent(context))
+        created.forEach { timers.delete(it) }
     }
 
     private suspend fun saveRunning(): Long {

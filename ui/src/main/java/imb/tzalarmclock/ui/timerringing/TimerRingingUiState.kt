@@ -7,9 +7,12 @@ import imb.tzalarmclock.domain.model.Timer
  * What the Timer Ringing screen displays.
  *
  * Unlike [imb.tzalarmclock.ui.ringing.RingingUiState], there's no name/time/
- * zone/date to show — a [Timer] has none of those — so this just carries the
- * original configured duration (e.g. "a 5:00 timer is up") and whether the
- * ring is still active.
+ * zone/date to show — a [Timer] has none of those — so this just carries
+ * every currently-ringing timer's original configured duration (e.g. "a
+ * 5:00 timer is up") and whether the ring is still active. More than one
+ * label means more than one timer fired while this ring cycle was already
+ * up — see `imb.tzalarmclock.timer.ringing.TimerRingingService`'s class doc
+ * — not that a single timer somehow has several durations.
  *
  * @param stillRinging `false` once `TimerRingingService` has ended this ring
  *   cycle — mirrors [imb.tzalarmclock.ui.ringing.RingingUiState.stillRinging].
@@ -17,9 +20,9 @@ import imb.tzalarmclock.domain.model.Timer
  *   ViewModel's first real read of it.
  */
 data class TimerRingingUiState(
-    val configuredDurationLabel: String = "",
+    val configuredDurationLabels: List<String> = emptyList(),
     val stillRinging: Boolean = true,
 )
 
-fun buildTimerRingingUiState(timer: Timer): TimerRingingUiState =
-    TimerRingingUiState(configuredDurationLabel = TimerCountdown.format(timer.configuredDuration))
+fun buildTimerRingingUiState(timers: List<Timer>): TimerRingingUiState =
+    TimerRingingUiState(configuredDurationLabels = timers.map { TimerCountdown.format(it.configuredDuration) })

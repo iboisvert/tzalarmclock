@@ -39,6 +39,11 @@ import imb.tzalarmclock.ui.theme.TzAlarmClockTheme
  * stray tap silencing a timer is a much lower-stakes mistake than silencing
  * an alarm, so the "difficult to accidentally stop" requirement doesn't
  * carry over.
+ *
+ * If more than one timer is ringing at once (see
+ * `imb.tzalarmclock.timer.ringing.TimerRingingService`'s class doc), this
+ * still shows a single screen with one Dismiss button — dismissing ends
+ * every ringing timer together, not just whichever one launched this screen.
  */
 @Composable
 fun TimerRingingScreen(
@@ -85,11 +90,13 @@ private fun TimerRingingScreen(
             Spacer(modifier = Modifier.height(1.dp))
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(text = "Time's Up!", fontSize = 48.sp, fontWeight = FontWeight.Bold, color = Color.White)
-                Text(
-                    text = "${uiState.configuredDurationLabel} timer",
-                    fontSize = 20.sp,
-                    color = Color.LightGray,
-                )
+                // Ordinarily just the one label ("5:00 timer"); more than one
+                // means more than one timer is ringing at once (see the class
+                // doc) — stacked as separate lines rather than crammed into
+                // one sentence.
+                uiState.configuredDurationLabels.ifEmpty { listOf("") }.forEach { label ->
+                    Text(text = "$label timer", fontSize = 20.sp, color = Color.LightGray)
+                }
             }
             Button(
                 onClick = onDismiss,
@@ -98,7 +105,10 @@ private fun TimerRingingScreen(
                     .fillMaxWidth()
                     .height(64.dp),
             ) {
-                Text("Dismiss", fontSize = 20.sp)
+                Text(
+                    if (uiState.configuredDurationLabels.size > 1) "Dismiss All" else "Dismiss",
+                    fontSize = 20.sp,
+                )
             }
         }
     }
@@ -109,7 +119,18 @@ private fun TimerRingingScreen(
 private fun TimerRingingScreenPreview() {
     TzAlarmClockTheme {
         TimerRingingScreen(
-            uiState = TimerRingingUiState(configuredDurationLabel = "5:00"),
+            uiState = TimerRingingUiState(configuredDurationLabels = listOf("5:00")),
+            onDismiss = {},
+        )
+    }
+}
+
+@Preview(showBackground = true)
+@Composable
+private fun TimerRingingScreenMultiplePreview() {
+    TzAlarmClockTheme {
+        TimerRingingScreen(
+            uiState = TimerRingingUiState(configuredDurationLabels = listOf("5:00", "2:00", "0:15")),
             onDismiss = {},
         )
     }

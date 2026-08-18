@@ -1,7 +1,6 @@
 package imb.tzalarmclock.timer.ringing
 
 import android.Manifest
-import android.app.Notification
 import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
@@ -29,6 +28,7 @@ import imb.tzalarmclock.domain.model.Timer
 import imb.tzalarmclock.domain.model.TimerState
 import imb.tzalarmclock.domain.schedule.reset
 import imb.tzalarmclock.timer.TimerProvider
+import java.util.concurrent.ConcurrentHashMap
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -38,11 +38,24 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 /**
- * Owns an actively-ringing timer's playback, vibration, volume escalation,
- * and ongoing notification — mirrors
+ * Owns every actively-ringing timer's playback, vibration, volume
+ * escalation, and ongoing notification — mirrors
  * `imb.tzalarmclock.alarm.ringing.RingingService`'s role for alarms, grown
  * from Stage 15's interim version into Stage 17's full one, with Stage 18's
  * `AppSettings.defaultTimerRingtoneUri` now wired into playback.
+ *
+ * Unlike `RingingService` (one alarm at a time is the spec's own model —
+ * snoozing exists precisely so a second alarm never has to interrupt a
+ * first), more than one timer *can* legitimately be ringing at once, so this
+ * service tracks the whole set of currently-ringing timer ids rather than a
+ * single one. Only one sound plays at a time regardless — a second timer
+ * joining an already-ringing cycle doesn't restart or overlap playback, just
+ * adds itself to the ring and to the shared notification/screen — and the
+ * explicit Dismiss action (notification or Ring screen) clears every timer
+ * in the set together. Each timer still gets its own
+ * [AppSettings.ringTimeoutMinutes] countdown, though: an unacknowledged
+ * timer dismisses *itself* on timeout without waiting for, or disturbing,
+ * any other still-ringing timer.
  *
  * Plays [AppSettings.defaultTimerRingtoneUri], falling back to the system
  * default alarm sound when it's unset or fails to resolve (e.g. the app
@@ -63,107 +76,157 @@ class TimerRingingService : Service() {
     private var wakeLock: PowerManager.WakeLock? = null
     private var escalationJob: Job? = null
 
+    /** Per-timer [AppSettings.ringTimeoutMinutes] countdown — see [startTimeout]. */
+    private val timeoutJobs = ConcurrentHashMap<Long, Job>()
+
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        if (intent?.action == ACTION_DISMISS_ALL) {
+            dismissAll()
+            return START_NOT_STICKY
+        }
         val timerId = intent?.getLongExtra(EXTRA_TIMER_ID, Timer.NO_ID) ?: Timer.NO_ID
         if (timerId == Timer.NO_ID) {
             stopSelf()
-            return START_NOT_STICKY
-        }
-        when (intent?.action) {
-            ACTION_DISMISS -> dismiss(timerId)
-            else -> ring(timerId)
+        } else {
+            ring(timerId)
         }
         return START_NOT_STICKY
     }
 
     override fun onDestroy() {
         stopRinging()
-        activeTimerId = Timer.NO_ID
+        timeoutJobs.values.forEach { it.cancel() }
+        timeoutJobs.clear()
+        synchronized(ringingTimerIds) { ringingTimerIds.clear() }
         scope.cancel()
         super.onDestroy()
     }
 
     private fun ring(timerId: Long) {
-        // Only one ring session at a time, same reasoning as RingingService:
-        // this service is a process-wide singleton.
-        stopRinging()
-        activeTimerId = timerId
-
-        ServiceCompat.startForeground(
-            this,
-            TimerRingingNotifications.notificationId(timerId),
-            TimerRingingNotifications.build(
-                this,
-                ringingActivityPendingIntent(timerId),
-                ringingActivityPendingIntent(timerId),
-                dismissPendingIntent(timerId),
-            ),
-            ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK,
-        )
+        val isFirstRingingTimer = addRingingId(timerId)
+        if (isFirstRingingTimer) {
+            // Posted immediately, before the settings/timer reads below: the
+            // OS kills the service if startForeground() doesn't follow
+            // startForegroundService() within a few seconds. Replaced once
+            // the real duration labels have loaded — same reasoning as
+            // RingingService posting a placeholder Alarm first. A *second*
+            // (or later) timer joining an already-foreground ring cycle has
+            // no such deadline, so it skips straight to the real refresh
+            // below instead of posting its own placeholder first.
+            postForegroundNotification(timerId, emptyList())
+        }
         acquireWakeLock()
 
         scope.launch {
             val settings = DataProvider.settingsRepository(this@TimerRingingService).getSettings()
-            val timer = DataProvider.timerRepository(this@TimerRingingService).getTimer(timerId)
-            if (timer != null) {
-                // Replaces the placeholder posted above, now that the
-                // timer's configured duration is known — same reasoning as
-                // RingingService re-posting once the real alarm name loads.
-                notifyIfAllowed(
-                    TimerRingingNotifications.notificationId(timerId),
-                    TimerRingingNotifications.build(
-                        this@TimerRingingService,
-                        ringingActivityPendingIntent(timerId),
-                        ringingActivityPendingIntent(timerId),
-                        dismissPendingIntent(timerId),
-                        configuredDurationLabel = TimerCountdown.format(timer.configuredDuration),
-                    ),
-                )
+            postForegroundNotification(timerId, loadDurationLabels(currentlyRingingTimerIds()))
+
+            if (isFirstRingingTimer) {
+                // Same background-activity-launch caveat as RingingService:
+                // only reaches the screen directly when the app is already
+                // foreground. The notification's full-screen intent posted
+                // above is what actually puts the ringing screen over the
+                // lock screen otherwise. Only done for the *first* ringing
+                // timer — a later one joining updates the same notification
+                // and the same already-showing screen in place (see
+                // TimerRingingViewModel's polling) rather than stacking a
+                // second ringing activity on top of the first.
+                try {
+                    startActivity(ringingActivityIntent(timerId))
+                } catch (e: Exception) {
+                    Log.w(TAG, "Couldn't start the timer ringing activity directly", e)
+                }
+                startPlayback(settings)
+                startVibration(settings)
             }
-            // Same background-activity-launch caveat as RingingService: only
-            // reaches the screen directly when the app is already
-            // foreground. The notification's full-screen intent posted
-            // above is what actually puts the ringing screen over the lock
-            // screen otherwise.
-            try {
-                startActivity(ringingActivityIntent(timerId))
-            } catch (e: Exception) {
-                Log.w(TAG, "Couldn't start the timer ringing activity directly", e)
-            }
-            startPlayback(settings)
-            startVibration(settings)
+            startTimeout(timerId, settings.ringTimeoutMinutes)
         }
     }
 
-    /** [NotificationManagerCompat.notify], permission-checked — mirrors `RingingService.notifyIfAllowed`. */
-    private fun notifyIfAllowed(id: Int, notification: Notification) {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
-            ContextCompat.checkSelfPermission(
+    private fun postForegroundNotification(latestTimerId: Long, configuredDurationLabels: List<String>) {
+        ServiceCompat.startForeground(
+            this,
+            TimerRingingNotifications.NOTIFICATION_ID,
+            TimerRingingNotifications.build(
                 this,
-                Manifest.permission.POST_NOTIFICATIONS,
-            ) == PackageManager.PERMISSION_GRANTED
-        ) {
-            NotificationManagerCompat.from(this).notify(id, notification)
+                ringingActivityPendingIntent(latestTimerId),
+                ringingActivityPendingIntent(latestTimerId),
+                dismissAllPendingIntent(),
+                configuredDurationLabels = configuredDurationLabels,
+            ),
+            ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK,
+        )
+    }
+
+    private suspend fun loadDurationLabels(timerIds: List<Long>): List<String> {
+        val timers = DataProvider.timerRepository(this@TimerRingingService)
+        return timerIds.mapNotNull { timers.getTimer(it) }.map { TimerCountdown.format(it.configuredDuration) }
+    }
+
+    /**
+     * Ends the ring cycle for every currently-ringing timer together — what
+     * the notification's Dismiss action and the Ring screen's Dismiss button
+     * both do. A convenience "clear everything I can see" action, distinct
+     * from [dismissTimeout]'s narrower per-timer auto-dismiss.
+     */
+    private fun dismissAll() {
+        val dismissedIds = synchronized(ringingTimerIds) { ringingTimerIds.toList().also { ringingTimerIds.clear() } }
+        dismissedIds.forEach { timeoutJobs.remove(it)?.cancel() }
+        stopRinging()
+        TimerRingingNotifications.cancel(this)
+        scope.launch {
+            resetExpired(dismissedIds)
+            TimerProvider.scheduler(this@TimerRingingService).syncAll()
+            stopSelf()
         }
     }
 
-    private fun dismiss(timerId: Long) {
-        stopRinging()
-        activeTimerId = Timer.NO_ID
-        TimerRingingNotifications.cancel(this, timerId)
+    /**
+     * The per-timer [AppSettings.ringTimeoutMinutes] safety net: dismisses
+     * only [timerId], leaving any other still-ringing timer's own ring cycle
+     * (sound, notification, screen) untouched — unlike [dismissAll], this
+     * never waits for or disturbs a different timer just because it also
+     * happens to be ringing right now.
+     */
+    private fun dismissTimeout(timerId: Long) {
+        timeoutJobs.remove(timerId)
+        val wasRinging = synchronized(ringingTimerIds) { ringingTimerIds.remove(timerId) }
+        if (!wasRinging) return // already cleared by dismissAll() (or a prior timeout) in the meantime
         scope.launch {
-            val timers = DataProvider.timerRepository(this@TimerRingingService)
+            resetExpired(listOf(timerId))
+            TimerProvider.scheduler(this@TimerRingingService).syncAll()
+            val stillRinging = currentlyRingingTimerIds()
+            if (stillRinging.isEmpty()) {
+                stopRinging()
+                TimerRingingNotifications.cancel(this@TimerRingingService)
+                stopSelf()
+            } else {
+                postForegroundNotification(stillRinging.last(), loadDurationLabels(stillRinging))
+            }
+        }
+    }
+
+    /**
+     * Returns each dismissed timer to a fresh, restartable state at its full
+     * original duration, ready to be started again — not left pinned at
+     * EXPIRED.
+     */
+    private suspend fun resetExpired(timerIds: List<Long>) {
+        val timers = DataProvider.timerRepository(this@TimerRingingService)
+        timerIds.forEach { timerId ->
             val timer = timers.getTimer(timerId)
-            // Dismissing returns the timer to a fresh, restartable state at
-            // its full original duration, ready to be started again - not
-            // left pinned at EXPIRED.
             if (timer != null && timer.state == TimerState.EXPIRED) {
                 timers.save(timer.reset())
             }
-            TimerProvider.scheduler(this@TimerRingingService).syncAll()
-            stopSelf()
+        }
+    }
+
+    private fun startTimeout(timerId: Long, ringTimeoutMinutes: Int) {
+        timeoutJobs[timerId] = scope.launch {
+            delay(ringTimeoutMinutes * MINUTES_TO_MILLIS)
+            dismissTimeout(timerId)
         }
     }
 
@@ -240,7 +303,14 @@ class TimerRingingService : Service() {
         wakeLock = null
     }
 
+    /**
+     * (Re-)acquires the shared wake lock, releasing any previously-held one
+     * first — called on every [ring], including a later timer joining an
+     * already-ringing cycle, which simply extends the hold rather than
+     * leaking the old one.
+     */
     private fun acquireWakeLock() {
+        wakeLock?.takeIf { it.isHeld }?.release()
         val powerManager = getSystemService(PowerManager::class.java)
         wakeLock = powerManager
             .newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "$packageName:TimerRingingWakeLock")
@@ -261,17 +331,24 @@ class TimerRingingService : Service() {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
 
-    private fun dismissPendingIntent(timerId: Long): PendingIntent =
+    private fun dismissAllPendingIntent(): PendingIntent =
         PendingIntent.getService(
             this,
-            timerId.hashCode(),
-            dismissIntent(this, timerId),
+            DISMISS_ALL_REQUEST_CODE,
+            dismissAllIntent(this),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
 
+    /** Adds [timerId] to [ringingTimerIds]. @return `true` if the set was empty beforehand. */
+    private fun addRingingId(timerId: Long): Boolean = synchronized(ringingTimerIds) {
+        val wasEmpty = ringingTimerIds.isEmpty()
+        ringingTimerIds.add(timerId)
+        wasEmpty
+    }
+
     companion object {
         const val ACTION_RING = "imb.tzalarmclock.timer.action.RING"
-        const val ACTION_DISMISS = "imb.tzalarmclock.timer.action.DISMISS"
+        const val ACTION_DISMISS_ALL = "imb.tzalarmclock.timer.action.DISMISS_ALL"
         const val EXTRA_TIMER_ID = "imb.tzalarmclock.timer.extra.TIMER_ID"
 
         /** Can't reference `TimerRingingActivity` directly: it lives in the `app` module, which depends on this one. */
@@ -282,28 +359,37 @@ class TimerRingingService : Service() {
         private const val ESCALATION_DURATION_MILLIS = 75_000L
         private const val ESCALATION_STEP_MILLIS = 500L
         private const val MAX_RING_DURATION_MILLIS = 10 * 60 * 1000L
+        private const val MINUTES_TO_MILLIS = 60_000L
+        private const val DISMISS_ALL_REQUEST_CODE = 1
         private val VIBRATION_PATTERN = longArrayOf(0, 500, 500)
 
         /**
-         * The timer id this (process-wide singleton) service is actively
-         * ringing, or [Timer.NO_ID] between ring cycles. In-memory, same
-         * reasoning as `RingingService.activeAlarmId` — losing it on process
-         * death is fine, since the ringing screen dies with the process too.
+         * Every timer id this (process-wide singleton) service is actively
+         * ringing right now, insertion-ordered (oldest fire first). In-memory,
+         * same reasoning as `RingingService.activeAlarmId` — losing it on
+         * process death is fine, since the ringing screen dies with the
+         * process too. Guarded by `synchronized` rather than `@Volatile`
+         * (unlike the single-`Long` version this replaces) since membership
+         * is now a compound, mutated-from-multiple-threads set: [ring],
+         * [dismissAll], and [dismissTimeout] can all race — the last from a
+         * timeout `Job` completing on a different thread than the
+         * `onStartCommand`-driven calls.
          */
-        @Volatile
-        private var activeTimerId: Long = Timer.NO_ID
+        private val ringingTimerIds = linkedSetOf<Long>()
+
+        /** Whether this service is actively ringing [timerId] right now. */
+        fun isRinging(timerId: Long): Boolean = synchronized(ringingTimerIds) { timerId in ringingTimerIds }
+
+        /** Every timer id currently ringing, oldest-fired first — the Ring screen's source of truth. */
+        fun currentlyRingingTimerIds(): List<Long> = synchronized(ringingTimerIds) { ringingTimerIds.toList() }
 
         fun ringIntent(context: Context, timerId: Long): Intent =
             Intent(context, TimerRingingService::class.java)
                 .setAction(ACTION_RING)
                 .putExtra(EXTRA_TIMER_ID, timerId)
 
-        fun dismissIntent(context: Context, timerId: Long): Intent =
-            Intent(context, TimerRingingService::class.java)
-                .setAction(ACTION_DISMISS)
-                .putExtra(EXTRA_TIMER_ID, timerId)
-
-        /** Whether this service is actively ringing [timerId] right now. */
-        fun isRinging(timerId: Long): Boolean = activeTimerId == timerId
+        /** Dismisses every currently-ringing timer together — see the class doc. */
+        fun dismissAllIntent(context: Context): Intent =
+            Intent(context, TimerRingingService::class.java).setAction(ACTION_DISMISS_ALL)
     }
 }

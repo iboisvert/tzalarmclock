@@ -15,11 +15,26 @@ import imb.tzalarmclock.timer.R
  * launches `TimerRingingActivity` over the lock screen.
  *
  * Mirrors `imb.tzalarmclock.alarm.ringing.RingingNotifications`, minus the
- * separate snoozed/canceled channels — timers have neither concept.
+ * separate snoozed/canceled channels — timers have neither concept. Unlike
+ * the alarm equivalent, there's exactly one of these posted at a time no
+ * matter how many timers are ringing (see [NOTIFICATION_ID]) — its Dismiss
+ * action ends every ringing timer together, so a per-timer notification with
+ * its own independent dismiss would be a second, contradictory way to clear
+ * just one of them.
  */
 object TimerRingingNotifications {
 
     const val CHANNEL_ID = "timer_ringing_v1"
+
+    /**
+     * Fixed rather than derived from a timer id (contrast
+     * `imb.tzalarmclock.alarm.ringing.RingingNotifications.notificationId`,
+     * which is per-alarm): this notification represents *every* currently-
+     * ringing timer, so posting under a stable id is what makes a second
+     * timer joining the ring update the existing notification in place
+     * instead of stacking a second one beside it.
+     */
+    val NOTIFICATION_ID: Int = "timer_ringing_group".hashCode()
 
     fun ensureChannel(context: Context) {
         val manager = context.getSystemService(NotificationManager::class.java)
@@ -45,11 +60,14 @@ object TimerRingingNotifications {
      * @param contentIntent what tapping the notification body does — the
      *   same destination as [fullScreenIntent], for when it was shown as
      *   heads-up.
-     * @param configuredDurationLabel the fired timer's original configured
-     *   duration (e.g. "5:00"), formatted the same way as the Timer Ringing
-     *   screen's own "5:00 timer" label — `null` for the placeholder
-     *   notification `TimerRingingService` posts via `startForeground()`
-     *   before it has loaded the timer, same reasoning as
+     * @param dismissIntent dismisses every currently-ringing timer — see the
+     *   class doc.
+     * @param configuredDurationLabels every currently-ringing timer's
+     *   original configured duration (e.g. "5:00"), formatted the same way
+     *   as the Timer Ringing screen's own "5:00 timer" label, oldest-fired
+     *   first — empty for the placeholder notification `TimerRingingService`
+     *   posts via `startForeground()` before it has loaded any of them, same
+     *   reasoning as
      *   `imb.tzalarmclock.alarm.ringing.RingingNotifications.build`'s
      *   placeholder `Alarm`.
      */
@@ -58,13 +76,22 @@ object TimerRingingNotifications {
         fullScreenIntent: PendingIntent,
         contentIntent: PendingIntent,
         dismissIntent: PendingIntent,
-        configuredDurationLabel: String? = null,
+        configuredDurationLabels: List<String> = emptyList(),
     ): Notification {
         ensureChannel(context)
-        val contentText = if (configuredDurationLabel != null) {
-            context.getString(R.string.timer_fired_text_with_duration, configuredDurationLabel)
+        val contentText = when (configuredDurationLabels.size) {
+            0 -> context.getString(R.string.timer_fired_text)
+            1 -> context.getString(R.string.timer_fired_text_with_duration, configuredDurationLabels.single())
+            else -> context.getString(
+                R.string.timer_fired_text_multiple,
+                configuredDurationLabels.size,
+                configuredDurationLabels.joinToString(", "),
+            )
+        }
+        val dismissActionLabel = if (configuredDurationLabels.size > 1) {
+            R.string.timer_dismiss_all_action
         } else {
-            context.getString(R.string.timer_fired_text)
+            R.string.timer_dismiss_action
         }
         return NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
@@ -77,13 +104,11 @@ object TimerRingingNotifications {
             .setAutoCancel(false)
             .setFullScreenIntent(fullScreenIntent, true)
             .setContentIntent(contentIntent)
-            .addAction(0, context.getString(R.string.timer_dismiss_action), dismissIntent)
+            .addAction(0, context.getString(dismissActionLabel), dismissIntent)
             .build()
     }
 
-    fun notificationId(timerId: Long): Int = timerId.hashCode()
-
-    fun cancel(context: Context, timerId: Long) {
-        NotificationManagerCompat.from(context).cancel(notificationId(timerId))
+    fun cancel(context: Context) {
+        NotificationManagerCompat.from(context).cancel(NOTIFICATION_ID)
     }
 }

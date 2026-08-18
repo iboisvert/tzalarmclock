@@ -4,5 +4,7 @@
     <string name="timer_channel_description">Rings when a timer expires.</string>
     <string name="timer_fired_text">Your timer is up.</string>
     <string name="timer_fired_text_with_duration">Your %1$s timer is up.</string>
+    <string name="timer_fired_text_multiple">%1$d timers are up: %2$s</string>
     <string name="timer_dismiss_action">Dismiss</string>
+    <string name="timer_dismiss_all_action">Dismiss all</string>
 </resources>

@@ -25,7 +25,10 @@ import java.time.ZoneId
  *   `RingingService` acts on the user's behalf: snoozes it, the same as an
  *   explicit tap on Snooze, if [maxSnoozeCount] allows one more; otherwise
  *   dismisses it, the same as an explicit hold-to-dismiss (non-recurring
- *   alarms disable, snooze state clears) — either way, without a tap.
+ *   alarms disable, snooze state clears) — either way, without a tap. Also
+ *   `TimerRingingService`'s per-timer auto-dismiss timeout — timers have no
+ *   snooze concept, so an unacknowledged timer just dismisses once this many
+ *   minutes pass, the same as an explicit tap on Dismiss.
  * @param defaultTimerRingtoneUri ring tone `TimerRingingService` plays for
  *   every timer; `null` means the system default alarm sound. Timers have
  *   no per-timer override the way [Alarm.ringtoneUri] does — the spec adds
