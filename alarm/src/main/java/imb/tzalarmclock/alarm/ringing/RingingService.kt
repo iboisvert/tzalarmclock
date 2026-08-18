@@ -424,8 +424,8 @@ class RingingService : Service() {
         const val ACTION_DISMISS = "imb.tzalarmclock.alarm.action.DISMISS"
         const val EXTRA_ALARM_ID = "imb.tzalarmclock.alarm.extra.ALARM_ID"
 
-        /** Can't reference `RingingActivity` directly: it lives in the `app` module, which depends on this one. */
-        private const val RINGING_ACTIVITY_CLASS = "imb.tzalarmclock.RingingActivity"
+        /** Can't reference `AlarmRingingActivity` directly: it lives in the `app` module, which depends on this one. */
+        private const val RINGING_ACTIVITY_CLASS = "imb.tzalarmclock.AlarmRingingActivity"
 
         private const val TAG = "RingingService"
         private const val ESCALATION_START_VOLUME = 0.15f
