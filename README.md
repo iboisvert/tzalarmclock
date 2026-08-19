@@ -13,6 +13,8 @@ given wall-clock time in whatever zone the device is currently in) or
 
 ## Features
 
+- **Navigation** — a title bar tab switcher moves between the Alarms and
+  Timers Summary pages, with Settings alongside.
 - **Alarms Summary** — all alarms grouped into Today / Tomorrow / This Week /
   Later, sorted by time-to-ring, with a fuzzy countdown ("2 d, 5 h" / "3 h" /
   "45 min") and quick enable/disable.
@@ -25,10 +27,27 @@ given wall-clock time in whatever zone the device is currently in) or
   an alarm you meant to pause. An unacknowledged ring auto-snoozes after a
   configurable timeout, the same as tapping Snooze; once no snoozes are left
   it auto-dismisses instead, posting a notification of the cancellation and
-  the alarm's time.
-- **Settings** — home time zone, snooze period and max snooze count, default
-  ringtone/vibration, alarm volume with optional escalation, 12/24-hour time
-  format, unacknowledged-ring timeout.
+  the alarm's time. If more than one alarm is ringing at once, they share a
+  single notification and ringing screen, and Snooze/Dismiss act on all of
+  them together — each alarm's own unacknowledged-ring timeout still runs
+  independently, so one alarm auto-snoozing or auto-dismissing never
+  disturbs another still-ringing alarm.
+- **Timers Summary** — run multiple timers concurrently, each counting down
+  independently, with per-timer start/pause-resume/reset/delete and a live
+  remaining-time display.
+- **Adding a Timer** — enter a duration via h/min/s fields; tapping a field
+  selects its existing value so the next keystroke replaces rather than
+  appends.
+- **Timer Ringing** — behaves like Alarm Ringing (over-lock-screen/on-top
+  full-screen UI, notification, tap-to-dismiss) using a separate, globally
+  configured timer ring tone. Timers that expire while another is still
+  ringing join the same notification and ringing screen rather than cutting
+  it off; Dismiss clears every ringing timer at once, while each timer's own
+  ring timeout still dismisses just that timer on its own.
+- **Settings** — grouped into General (home time zone, 12/24-hour format),
+  Alarm (snooze period and max snooze count, default ringtone, alarm volume
+  with optional escalation, default vibration, unacknowledged-ring timeout),
+  and Timer (default timer ring tone).
 
 ## Install
 
@@ -38,7 +57,8 @@ app on a device.
 ## Documentation
 
 - [`docs/Requirements.md`](docs/Requirements.md) — the product/behavioral
-  spec: features, screens, alarm semantics, and Phase 2 backlog.
+  spec: features, screens, alarm semantics, and the Phase 2 (timers) and
+  Phase 3 (backlog) sections.
 - [`docs/DevelopmentPlan.md`](docs/DevelopmentPlan.md) — the staged build
   plan derived from the spec, including every assumption made to resolve
   ambiguity in the requirements (recurrence/date exclusivity, DST edge
