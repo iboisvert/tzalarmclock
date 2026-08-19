@@ -44,8 +44,9 @@ class RingingServiceTest {
         created.forEach {
             snoozes.clear(it)
             alarms.delete(it)
-            RingingNotifications.cancel(context, it)
+            RingingNotifications.cancelSnoozed(context, it)
         }
+        RingingNotifications.cancelRinging(context)
     }
 
     private suspend fun save(schedule: AlarmSchedule): Long {

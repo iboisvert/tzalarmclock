@@ -32,6 +32,12 @@ import imb.tzalarmclock.ui.theme.TzAlarmClockTheme
  * deliberate hold (see [HoldToDismissButton]) while Snooze is a single tap,
  * inverted from the usual convention on purpose, per the spec's explicit
  * priority.
+ *
+ * If more than one alarm is ringing at once (see
+ * `imb.tzalarmclock.alarm.ringing.RingingService`'s class doc), this still
+ * shows a single screen with one Snooze and one Dismiss button — either one
+ * acts on every ringing alarm together, not just whichever one launched this
+ * screen.
  */
 @Composable
 fun RingingScreen(
@@ -91,12 +97,19 @@ private fun RingingScreen(
                 Text(text = uiState.dateLabel, fontSize = 20.sp, color = Color.White)
                 Text(text = uiState.zoneLabel, fontSize = 16.sp, color = Color.LightGray)
                 Spacer(modifier = Modifier.height(32.dp))
-                Text(
-                    text = uiState.alarmName,
-                    fontSize = 28.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = Color.White,
-                )
+                // Ordinarily just the one name; more than one means more than
+                // one alarm is ringing at once (see the class doc) — stacked
+                // as separate lines rather than crammed into one sentence.
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    uiState.alarms.forEach { alarm ->
+                        Text(
+                            text = alarm.alarmName,
+                            fontSize = 28.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = Color.White,
+                        )
+                    }
+                }
             }
             Column(
                 modifier = Modifier.fillMaxWidth(),
@@ -110,12 +123,13 @@ private fun RingingScreen(
                             .fillMaxWidth()
                             .height(64.dp),
                     ) {
-                        Text("Snooze (${uiState.snoozesRemaining} left)", fontSize = 20.sp)
+                        Text(snoozeLabel(uiState.alarms), fontSize = 20.sp)
                     }
                 }
                 HoldToDismissButton(
                     onDismiss = onDismiss,
-                    contentDescription = "Dismiss alarm",
+                    label = if (uiState.alarms.size > 1) "Hold to Dismiss All" else "Hold to Dismiss",
+                    contentDescription = if (uiState.alarms.size > 1) "Dismiss all alarms" else "Dismiss alarm",
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(64.dp),
@@ -125,18 +139,21 @@ private fun RingingScreen(
     }
 }
 
+/** "Snooze (N left)" for one alarm — unchanged from before multiple alarms could ring at once — or a plain "Snooze All" once remaining counts can differ per alarm. */
+private fun snoozeLabel(alarms: List<RingingAlarmUi>): String =
+    if (alarms.size == 1) "Snooze (${alarms.single().snoozesRemaining} left)" else "Snooze All"
+
 @Preview(showBackground = true)
 @Composable
 private fun RingingScreenPreview() {
     TzAlarmClockTheme {
         RingingScreen(
             uiState = RingingUiState(
-                alarmName = "Morning",
+                alarms = listOf(RingingAlarmUi(alarmName = "Morning", snoozesRemaining = 3)),
                 timeLabel = "07:00",
                 dateLabel = "Monday, Jan 5",
                 zoneLabel = "America/Toronto",
                 canSnooze = true,
-                snoozesRemaining = 3,
             ),
             onSnooze = {},
             onDismiss = {},
@@ -150,12 +167,32 @@ private fun RingingScreenMaxSnoozePreview() {
     TzAlarmClockTheme {
         RingingScreen(
             uiState = RingingUiState(
-                alarmName = "Morning",
+                alarms = listOf(RingingAlarmUi(alarmName = "Morning", snoozesRemaining = 0)),
                 timeLabel = "07:10",
                 dateLabel = "Monday, Jan 5",
                 zoneLabel = "America/Toronto",
                 canSnooze = false,
-                snoozesRemaining = 0,
+            ),
+            onSnooze = {},
+            onDismiss = {},
+        )
+    }
+}
+
+@Preview(showBackground = true)
+@Composable
+private fun RingingScreenMultiplePreview() {
+    TzAlarmClockTheme {
+        RingingScreen(
+            uiState = RingingUiState(
+                alarms = listOf(
+                    RingingAlarmUi(alarmName = "Morning", snoozesRemaining = 3),
+                    RingingAlarmUi(alarmName = "Backup", snoozesRemaining = 0),
+                ),
+                timeLabel = "07:00",
+                dateLabel = "Monday, Jan 5",
+                zoneLabel = "America/Toronto",
+                canSnooze = true,
             ),
             onSnooze = {},
             onDismiss = {},

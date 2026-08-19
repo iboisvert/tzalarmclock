@@ -54,7 +54,7 @@ class RingingNotificationsTest {
     fun ringingNotificationIsCategorizedAsAlarmAtMaxPriority() {
         val notification = RingingNotifications.build(
             context,
-            alarm,
+            listOf(alarm),
             dummyPendingIntent(1),
             dummyPendingIntent(2),
         )
@@ -112,15 +112,17 @@ class RingingNotificationsTest {
     }
 
     /**
-     * The snoozed and ringing notifications for one alarm must stay two
-     * *separate* notifications.
+     * The snoozed and ringing notifications must stay two *separate*
+     * notifications, cancelable independently of each other.
      *
      * They shared an id until this was fixed, which made a snooze re-fire post
      * the ringing notification on top of the still-posted snoozed one. SystemUI
      * launches a full-screen intent only when a notification is added to its
      * collection, never when one is updated, so the ringing screen silently
      * stopped appearing over the lock screen and the alarm could only be
-     * reached by unlocking the device.
+     * reached by unlocking the device. The ringing notification is now shared
+     * across every ringing alarm (see [RingingNotifications.RINGING_NOTIFICATION_ID])
+     * rather than keyed per alarm, but the same distinct-key requirement holds.
      */
     @Test
     fun snoozedNotificationDoesNotReplaceTheRingingOne() {
@@ -129,13 +131,17 @@ class RingingNotificationsTest {
             android.Manifest.permission.POST_NOTIFICATIONS,
         )
         val alarmId = 90_210L
-        val id = RingingNotifications.notificationId(alarmId)
-        RingingNotifications.cancel(context, alarmId)
+        val snoozedId = RingingNotifications.notificationId(alarmId)
+        RingingNotifications.cancelRinging(context)
+        RingingNotifications.cancelSnoozed(context, alarmId)
 
-        manager.notify(id, RingingNotifications.build(context, alarm, dummyPendingIntent(4), dummyPendingIntent(5)))
+        manager.notify(
+            RingingNotifications.RINGING_NOTIFICATION_ID,
+            RingingNotifications.build(context, listOf(alarm), dummyPendingIntent(4), dummyPendingIntent(5)),
+        )
         manager.notify(
             RingingNotifications.SNOOZED_TAG,
-            id,
+            snoozedId,
             RingingNotifications.buildSnoozed(
                 context = context,
                 alarm = alarm,
@@ -146,37 +152,32 @@ class RingingNotificationsTest {
             ),
         )
 
-        assertEquals(
-            "both notifications must stay posted, under distinct keys",
-            2,
-            awaitPostedCount(id) { it == 2 },
+        awaitCondition { manager.activeNotifications.any { it.id == RingingNotifications.RINGING_NOTIFICATION_ID } }
+        awaitCondition { manager.activeNotifications.any { it.id == snoozedId && it.tag == RingingNotifications.SNOOZED_TAG } }
+
+        RingingNotifications.cancelSnoozed(context, alarmId)
+        awaitCondition { manager.activeNotifications.none { it.tag == RingingNotifications.SNOOZED_TAG } }
+        assertTrue(
+            "cancelling only the snoozed notification must leave the ringing one alone",
+            manager.activeNotifications.any { it.id == RingingNotifications.RINGING_NOTIFICATION_ID },
         )
 
-        RingingNotifications.cancel(context, alarmId)
-        assertEquals(
-            "cancelling an alarm must clear both of its notifications",
-            0,
-            awaitPostedCount(id) { it == 0 },
-        )
+        RingingNotifications.cancelRinging(context)
+        awaitCondition { manager.activeNotifications.none { it.id == RingingNotifications.RINGING_NOTIFICATION_ID } }
     }
 
     /**
-     * How many notifications are posted under [id], once that count satisfies
-     * [expected] or the wait times out.
+     * Polls until [condition] is true or the wait times out.
      *
-     * Polled rather than read straight back: posting and cancelling are both
-     * handed to the notification service's own handler thread, so
-     * [NotificationManager.getActiveNotifications] can still report the
-     * previous state for a moment after the call returns.
+     * Posting and cancelling are both handed to the notification service's
+     * own handler thread, so [NotificationManager.getActiveNotifications] can
+     * still report the previous state for a moment after the call returns.
      */
-    private fun awaitPostedCount(id: Int, expected: (Int) -> Boolean): Int {
+    private fun awaitCondition(condition: () -> Boolean) {
         val deadline = System.currentTimeMillis() + TIMEOUT_MILLIS
-        var count = manager.activeNotifications.count { it.id == id }
-        while (!expected(count) && System.currentTimeMillis() < deadline) {
+        while (!condition() && System.currentTimeMillis() < deadline) {
             Thread.sleep(POLL_MILLIS)
-            count = manager.activeNotifications.count { it.id == id }
         }
-        return count
     }
 
     private companion object {

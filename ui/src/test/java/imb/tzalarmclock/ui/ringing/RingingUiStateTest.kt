@@ -24,81 +24,99 @@ class RingingUiStateTest {
 
     @Test
     fun `shows the alarm name, falling back when blank`() {
-        val alarm = Alarm(name = "Wake up", time = LocalTime.of(7, 0))
+        val alarm = Alarm(id = 1, name = "Wake up", time = LocalTime.of(7, 0))
 
-        val state = buildRingingUiState(alarm, AppSettings.DEFAULTS, now, snoozeCount = 0)
+        val state = buildRingingUiState(listOf(alarm), AppSettings.DEFAULTS, now, snoozeCounts = emptyMap())
 
-        assertEquals("Wake up", state.alarmName)
+        assertEquals("Wake up", state.alarms.single().alarmName)
     }
 
     @Test
     fun `a blank alarm name falls back to a default`() {
-        val alarm = Alarm(name = "", time = LocalTime.of(7, 0))
+        val alarm = Alarm(id = 1, name = "", time = LocalTime.of(7, 0))
 
-        val state = buildRingingUiState(alarm, AppSettings.DEFAULTS, now, snoozeCount = 0)
+        val state = buildRingingUiState(listOf(alarm), AppSettings.DEFAULTS, now, snoozeCounts = emptyMap())
 
-        assertEquals("Alarm", state.alarmName)
+        assertEquals("Alarm", state.alarms.single().alarmName)
     }
 
     @Test
     fun `time label respects the 24-hour setting`() {
-        val alarm = Alarm(time = LocalTime.of(7, 0))
+        val alarm = Alarm(id = 1, time = LocalTime.of(7, 0))
         val settings24h = AppSettings.DEFAULTS.copy(use24HourFormat = true)
         val settings12h = AppSettings.DEFAULTS.copy(use24HourFormat = false)
 
-        assertEquals("07:00", buildRingingUiState(alarm, settings24h, now, 0).timeLabel)
-        assertEquals("7:00 AM", buildRingingUiState(alarm, settings12h, now, 0).timeLabel)
+        assertEquals("07:00", buildRingingUiState(listOf(alarm), settings24h, now, emptyMap()).timeLabel)
+        assertEquals("7:00 AM", buildRingingUiState(listOf(alarm), settings12h, now, emptyMap()).timeLabel)
     }
 
     @Test
     fun `zone label reflects the current device zone, not the alarm's own zone`() {
-        val alarm = Alarm(time = LocalTime.of(7, 0), zone = ZoneId.of("Europe/Berlin"))
+        val alarm = Alarm(id = 1, time = LocalTime.of(7, 0), zone = ZoneId.of("Europe/Berlin"))
 
-        val state = buildRingingUiState(alarm, AppSettings.DEFAULTS, now, snoozeCount = 0)
+        val state = buildRingingUiState(listOf(alarm), AppSettings.DEFAULTS, now, snoozeCounts = emptyMap())
 
         assertEquals("America/Toronto", state.zoneLabel)
     }
 
     @Test
     fun `snoozes remaining counts down from the max`() {
-        val alarm = Alarm(time = LocalTime.of(7, 0))
+        val alarm = Alarm(id = 1, time = LocalTime.of(7, 0))
         val settings = AppSettings.DEFAULTS.copy(maxSnoozeCount = 3)
 
-        val state = buildRingingUiState(alarm, settings, now, snoozeCount = 1)
+        val state = buildRingingUiState(listOf(alarm), settings, now, snoozeCounts = mapOf(1L to 1))
 
-        assertEquals(2, state.snoozesRemaining)
+        assertEquals(2, state.alarms.single().snoozesRemaining)
         assertTrue(state.canSnooze)
     }
 
     @Test
-    fun `snooze is unavailable once the max is reached`() {
-        val alarm = Alarm(time = LocalTime.of(7, 0))
+    fun `snooze is unavailable once every ringing alarm has reached the max`() {
+        val alarm = Alarm(id = 1, time = LocalTime.of(7, 0))
         val settings = AppSettings.DEFAULTS.copy(maxSnoozeCount = 3)
 
-        val state = buildRingingUiState(alarm, settings, now, snoozeCount = 3)
+        val state = buildRingingUiState(listOf(alarm), settings, now, snoozeCounts = mapOf(1L to 3))
 
-        assertEquals(0, state.snoozesRemaining)
+        assertEquals(0, state.alarms.single().snoozesRemaining)
         assertFalse(state.canSnooze)
     }
 
     @Test
     fun `snoozes remaining never goes negative`() {
-        val alarm = Alarm(time = LocalTime.of(7, 0))
+        val alarm = Alarm(id = 1, time = LocalTime.of(7, 0))
         val settings = AppSettings.DEFAULTS.copy(maxSnoozeCount = 1)
 
-        val state = buildRingingUiState(alarm, settings, now, snoozeCount = 5)
+        val state = buildRingingUiState(listOf(alarm), settings, now, snoozeCounts = mapOf(1L to 5))
 
-        assertEquals(0, state.snoozesRemaining)
+        assertEquals(0, state.alarms.single().snoozesRemaining)
         assertFalse(state.canSnooze)
     }
 
     @Test
     fun `a settings max of zero snoozes offers no snooze at all`() {
-        val alarm = Alarm(time = LocalTime.of(7, 0))
+        val alarm = Alarm(id = 1, time = LocalTime.of(7, 0))
         val settings = AppSettings.DEFAULTS.copy(maxSnoozeCount = 0)
 
-        val state = buildRingingUiState(alarm, settings, now, snoozeCount = 0)
+        val state = buildRingingUiState(listOf(alarm), settings, now, snoozeCounts = emptyMap())
 
         assertFalse(state.canSnooze)
+    }
+
+    @Test
+    fun `canSnooze is true if any ringing alarm still has a snooze left`() {
+        val exhausted = Alarm(id = 1, name = "Morning", time = LocalTime.of(7, 0))
+        val fresh = Alarm(id = 2, name = "Backup", time = LocalTime.of(7, 5))
+        val settings = AppSettings.DEFAULTS.copy(maxSnoozeCount = 1)
+
+        val state = buildRingingUiState(
+            listOf(exhausted, fresh),
+            settings,
+            now,
+            snoozeCounts = mapOf(1L to 1, 2L to 0),
+        )
+
+        assertEquals(0, state.alarms[0].snoozesRemaining)
+        assertEquals(1, state.alarms[1].snoozesRemaining)
+        assertTrue(state.canSnooze)
     }
 }

@@ -24,10 +24,27 @@ import java.util.Locale
  * volume escalation, and the vibration setting, none of which a channel-level
  * sound can do. Channel settings are immutable once created, hence the new
  * [CHANNEL_ID] rather than reusing the old one.
+ *
+ * The ringing notification itself is shared across every currently-ringing
+ * alarm (see [RINGING_NOTIFICATION_ID]) — its Snooze/Dismiss buttons live on
+ * the Ring screen, not as notification actions, and both now apply to every
+ * ringing alarm together. The snoozed/canceled notifications stay per-alarm:
+ * each represents one specific alarm's own post-ring status, so multiple of
+ * them showing at once (one per alarm) is correct, unlike the ringing state.
  */
 object RingingNotifications {
 
     const val CHANNEL_ID = "alarm_ringing_v2"
+
+    /**
+     * Fixed rather than derived from an alarm id (contrast [notificationId],
+     * still used for the per-alarm snoozed/canceled notifications): this one
+     * represents *every* currently-ringing alarm, so posting under a stable
+     * id is what makes a second alarm firing while the first still rings
+     * update the existing notification in place instead of stacking a second
+     * one beside it.
+     */
+    val RINGING_NOTIFICATION_ID: Int = "alarm_ringing_group".hashCode()
 
     /**
      * Separate from [CHANNEL_ID]: a snoozed alarm is an informational, ignorable
@@ -115,8 +132,12 @@ object RingingNotifications {
     }
 
     /**
-     * Builds the ongoing "alarm ringing" notification for [alarm].
+     * Builds the ongoing "alarm ringing" notification for every
+     * currently-ringing alarm together.
      *
+     * @param alarms every alarm currently ringing, oldest-fired first — empty
+     *   for the placeholder notification `RingingService` posts via
+     *   `startForeground()` before it has loaded the first one.
      * @param fullScreenIntent launches the ringing activity over the lock
      *   screen (or as a heads-up notification if the device declines
      *   full-screen intents, e.g. `USE_FULL_SCREEN_INTENT` revoked by the user).
@@ -125,15 +146,25 @@ object RingingNotifications {
      */
     fun build(
         context: Context,
-        alarm: Alarm,
+        alarms: List<Alarm>,
         fullScreenIntent: PendingIntent,
         contentIntent: PendingIntent,
     ): Notification {
         ensureChannel(context)
+        fun displayName(alarm: Alarm) = alarm.name.ifBlank { context.getString(R.string.alarm_default_name) }
+        val title = if (alarms.size == 1) displayName(alarms.single()) else context.getString(R.string.alarm_channel_name)
+        val text = when (alarms.size) {
+            0, 1 -> context.getString(R.string.alarm_fired_text)
+            else -> context.getString(
+                R.string.alarm_fired_text_multiple,
+                alarms.size,
+                alarms.joinToString(", ") { displayName(it) },
+            )
+        }
         return NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
-            .setContentTitle(alarm.name.ifBlank { context.getString(R.string.alarm_default_name) })
-            .setContentText(context.getString(R.string.alarm_fired_text))
+            .setContentTitle(title)
+            .setContentText(text)
             .setCategory(NotificationCompat.CATEGORY_ALARM)
             .setPriority(NotificationCompat.PRIORITY_MAX)
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
@@ -223,15 +254,12 @@ object RingingNotifications {
             .build()
     }
 
-    /** One notification per alarm, so two ringing close together don't collide. */
+    /** One id per alarm for its snoozed/canceled notifications, so two don't collide. */
     fun notificationId(alarmId: Long): Int = alarmId.hashCode()
 
-    /** Clears both of [alarmId]'s notifications — the ringing one and the snoozed one. */
-    fun cancel(context: Context, alarmId: Long) {
-        with(NotificationManagerCompat.from(context)) {
-            cancel(notificationId(alarmId))
-            cancel(SNOOZED_TAG, notificationId(alarmId))
-        }
+    /** Clears the shared ringing notification — see [RINGING_NOTIFICATION_ID]. */
+    fun cancelRinging(context: Context) {
+        NotificationManagerCompat.from(context).cancel(RINGING_NOTIFICATION_ID)
     }
 
     /**

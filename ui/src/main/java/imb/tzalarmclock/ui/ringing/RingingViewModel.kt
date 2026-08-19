@@ -6,7 +6,6 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import imb.tzalarmclock.alarm.ringing.RingingService
 import imb.tzalarmclock.data.DataProvider
-import imb.tzalarmclock.domain.model.Alarm
 import imb.tzalarmclock.domain.repository.AlarmRepository
 import imb.tzalarmclock.domain.repository.SettingsRepository
 import java.time.ZonedDateTime
@@ -17,13 +16,17 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
 /**
- * Backs the Ringing screen: loads the firing alarm once, then re-renders
- * [uiState] on a 1-second tick so the displayed clock stays live.
+ * Backs the Ringing screen: polls [RingingService.currentlyRingingAlarmIds]
+ * on a 1-second tick so the displayed clock stays live and so a *second*
+ * alarm joining an already-showing ring cycle updates this screen in place
+ * — unlike a plain one-alarm load, since more than one alarm can be ringing
+ * at once (see [RingingService]'s class doc).
  *
  * [onSnooze] and [onDismiss] only fire an intent at [RingingService] — the
  * repository/scheduler writes happen there, not here, so they aren't lost
  * when the ringing activity finishes and this ViewModel is cleared right
- * after the tap.
+ * after the tap. Both now act on every ringing alarm together, not just the
+ * one whose fire launched this screen.
  */
 class RingingViewModel(application: Application) : AndroidViewModel(application) {
 
@@ -34,37 +37,39 @@ class RingingViewModel(application: Application) : AndroidViewModel(application)
     private val _uiState = MutableStateFlow(RingingUiState())
     val uiState: StateFlow<RingingUiState> = _uiState.asStateFlow()
 
-    private var alarmId: Long = Alarm.NO_ID
     private var hasStartedLoad = false
 
-    /** Loads the alarm and starts the display tick. Idempotent. */
+    /**
+     * Starts polling every currently-ringing alarm — not just [alarmId], the
+     * one whose fire launched this screen. [alarmId] only gates idempotency;
+     * it plays no part in what's displayed. Idempotent.
+     */
     fun load(alarmId: Long) {
         if (hasStartedLoad) return
         hasStartedLoad = true
-        this.alarmId = alarmId
         viewModelScope.launch {
-            val alarm = alarmRepository.getAlarm(alarmId) ?: return@launch
-            val settings = settingsRepository.getSettings()
             while (true) {
-                val snoozeCount = RingingService.snoozeCount(context, alarmId)
-                val stillRinging = RingingService.isRinging(alarmId)
-                _uiState.value = buildRingingUiState(alarm, settings, ZonedDateTime.now(), snoozeCount)
-                    .copy(stillRinging = stillRinging)
-                // Nothing left to refresh once the service has ended this ring
-                // cycle by itself (a timeout, most notably) — RingingScreen
-                // reacts to stillRinging turning false by finishing itself.
-                if (!stillRinging) break
+                val ringingIds = RingingService.currentlyRingingAlarmIds()
+                if (ringingIds.isEmpty()) {
+                    _uiState.value = _uiState.value.copy(stillRinging = false)
+                    break
+                }
+                val alarms = ringingIds.mapNotNull { alarmRepository.getAlarm(it) }
+                val settings = settingsRepository.getSettings()
+                val snoozeCounts = ringingIds.associateWith { RingingService.snoozeCount(context, it) }
+                _uiState.value = buildRingingUiState(alarms, settings, ZonedDateTime.now(), snoozeCounts)
+                    .copy(stillRinging = true)
                 delay(TICK_PERIOD_MILLIS)
             }
         }
     }
 
     fun onSnooze() {
-        context.startService(RingingService.snoozeIntent(context, alarmId))
+        context.startService(RingingService.snoozeAllIntent(context))
     }
 
     fun onDismiss() {
-        context.startService(RingingService.dismissIntent(context, alarmId))
+        context.startService(RingingService.dismissAllIntent(context))
     }
 
     private companion object {
