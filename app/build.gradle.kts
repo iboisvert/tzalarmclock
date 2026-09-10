@@ -21,8 +21,8 @@ android {
         applicationId = "imb.tzalarmclock"
         minSdk = 31
         targetSdk = 35
-        versionCode = 3
-        versionName = "1.0.0-beta3"
+        versionCode = 4
+        versionName = "1.0.0-beta4"
 
         // Formatted at configuration time so every build (and every variant)
         // gets a stamp for the moment it was compiled, shown on the Settings
