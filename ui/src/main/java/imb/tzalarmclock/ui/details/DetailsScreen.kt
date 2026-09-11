@@ -3,6 +3,7 @@
 package imb.tzalarmclock.ui.details
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
@@ -233,24 +234,40 @@ private fun DetailsScreen(
             )
 
             HorizontalDivider()
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                OutlinedButton(onClick = requestLeave, modifier = Modifier.weight(1f)) {
-                    Text("Cancel")
-                }
-                if (uiState.isNew) {
+            if (uiState.isNew) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    OutlinedButton(onClick = requestLeave, modifier = Modifier.weight(1f)) {
+                        Text("Cancel")
+                    }
                     Button(onClick = onAdd, modifier = Modifier.weight(1f)) {
                         Text("Add")
                     }
-                } else {
-                    Button(
+                }
+            } else {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    OutlinedButton(onClick = requestLeave, modifier = Modifier.weight(1f)) {
+                        Text("Cancel")
+                    }
+                    OutlinedButton(
                         onClick = { showDeleteConfirm = true },
-                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.error),
                         modifier = Modifier.weight(1f),
                     ) {
-                        Text("Delete Alarm")
+                        Text("Delete")
+                    }
+                    Button(
+                        onClick = onSaveEdit,
+                        enabled = isDirty(),
+                        modifier = Modifier.weight(1f),
+                    ) {
+                        Text("Save")
                     }
                 }
             }
@@ -519,7 +536,7 @@ private fun DetailsScreenEditPreview() {
                 scheduleType = ScheduleType.WEEKLY,
                 weekdays = setOf(DayOfWeek.MONDAY, DayOfWeek.WEDNESDAY, DayOfWeek.FRIDAY),
             ),
-            isDirty = { false },
+            isDirty = { true },
             onDiscard = {},
             onAdd = {},
             onSaveEdit = {},
