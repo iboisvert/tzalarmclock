@@ -5,4 +5,16 @@
     <string name="warning_battery">Battery optimisation is on for this app. Alarms should still ring, but some phones delay them.</string>
     <string name="warning_action_grant">Allow exact alarms</string>
     <string name="warning_action_allow">Allow</string>
+    <string name="intent_invalid_time">That alarm time isn\'t valid.</string>
+    <string name="intent_alarm_set">Alarm set for %1$s</string>
+    <string name="intent_alarm_dismissed">Alarm dismissed</string>
+    <string name="intent_alarm_snoozed">Alarm snoozed</string>
+    <string name="intent_no_alarm_ringing">No alarm is ringing.</string>
+    <string name="intent_timer_started">Timer started for %1$s</string>
+    <string name="intent_timer_dismissed">Timer dismissed</string>
+    <string name="intent_no_timer_ringing">No timer is ringing.</string>
+    <plurals name="intent_alarms_turned_off">
+        <item quantity="one">%d alarm turned off</item>
+        <item quantity="other">%d alarms turned off</item>
+    </plurals>
 </resources>

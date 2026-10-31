@@ -26,6 +26,34 @@
         </activity>
 
         <!--
+          The standard android.provider.AlarmClock intents, so voice
+          assistants and other apps can use this as the clock app. Guarded by
+          SET_ALARM, as the platform clock app is; it's a normal permission,
+          so any caller that declares it is granted it. Translucent with an
+          empty task affinity: it shows nothing and finishes at once, and
+          mustn't pull this app's task forward unless it opens MainActivity.
+        -->
+        <activity
+            android:name=".AlarmClockIntentActivity"
+            android:exported="true"
+            android:excludeFromRecents="true"
+            android:permission="com.android.alarm.permission.SET_ALARM"
+            android:taskAffinity=""
+            android:theme="@android:style/Theme.Translucent.NoTitleBar">
+            <intent-filter>
+                <action android:name="android.intent.action.SET_ALARM" />
+                <action android:name="android.intent.action.SHOW_ALARMS" />
+                <action android:name="android.intent.action.DISMISS_ALARM" />
+                <action android:name="android.intent.action.SNOOZE_ALARM" />
+                <action android:name="android.intent.action.SET_TIMER" />
+                <action android:name="android.intent.action.SHOW_TIMERS" />
+                <action android:name="android.intent.action.DISMISS_TIMER" />
+
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
+
+        <!--
           Not exported, no LAUNCHER intent-filter: only ever started by
           RingingService (directly, or via the notification's full-screen
           intent), never by the user or another app.
