@@ -19,6 +19,7 @@ import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Replay
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
@@ -27,7 +28,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -71,7 +72,7 @@ fun TimersScreen(
         onResume = viewModel::resumeTimer,
         onReset = viewModel::resetTimer,
         onDelete = viewModel::deleteTimer,
-        onAddTimer = viewModel::addTimer,
+        onAddTimer = { duration, start -> viewModel.addTimer(duration, start) },
         modifier = modifier,
     )
 }
@@ -88,7 +89,7 @@ private fun TimersScreen(
     onResume: (Long) -> Unit,
     onReset: (Long) -> Unit,
     onDelete: (Long) -> Unit,
-    onAddTimer: (Duration) -> Unit,
+    onAddTimer: (Duration, Boolean) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var showAddTimer by remember { mutableStateOf(false) }
@@ -146,8 +147,8 @@ private fun TimersScreen(
 
     if (showAddTimer) {
         AddTimerDialog(
-            onAdd = { duration ->
-                onAddTimer(duration)
+            onAdd = { duration, start ->
+                onAddTimer(duration, start)
                 showAddTimer = false
             },
             onDismiss = { showAddTimer = false },
@@ -202,7 +203,7 @@ private fun TimerRow(
 }
 
 @Composable
-private fun AddTimerDialog(onAdd: (Duration) -> Unit, onDismiss: () -> Unit) {
+private fun AddTimerDialog(onAdd: (Duration, Boolean) -> Unit, onDismiss: () -> Unit) {
     var hours by remember { mutableStateOf(DEFAULT_HOURS) }
     var minutes by remember { mutableStateOf(DEFAULT_MINUTES) }
     var seconds by remember { mutableStateOf(DEFAULT_SECONDS) }
@@ -211,42 +212,52 @@ private fun AddTimerDialog(onAdd: (Duration) -> Unit, onDismiss: () -> Unit) {
         onDismissRequest = onDismiss,
         title = { Text("Add Timer") },
         text = {
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                DurationField(
-                    label = "h",
-                    value = hours,
-                    onValueChange = { hours = it },
-                    modifier = Modifier.weight(1f),
-                )
-                DurationField(
-                    label = "min",
-                    value = minutes,
-                    onValueChange = { minutes = it },
-                    modifier = Modifier.weight(1f),
-                )
-                DurationField(
-                    label = "s",
-                    value = seconds,
-                    onValueChange = { seconds = it },
-                    modifier = Modifier.weight(1f),
-                )
-            }
-        },
-        confirmButton = {
-            TextButton(
-                onClick = {
-                    val duration = Duration.ofHours(hours.toLong())
+            Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    DurationField(
+                        label = "h",
+                        value = hours,
+                        onValueChange = { hours = it },
+                        modifier = Modifier.weight(1f),
+                    )
+                    DurationField(
+                        label = "min",
+                        value = minutes,
+                        onValueChange = { minutes = it },
+                        modifier = Modifier.weight(1f),
+                    )
+                    DurationField(
+                        label = "s",
+                        value = seconds,
+                        onValueChange = { seconds = it },
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+                val duration = {
+                    Duration.ofHours(hours.toLong())
                         .plusMinutes(minutes.toLong())
                         .plusSeconds(seconds.toLong())
-                    onAdd(duration)
-                },
-            ) {
-                Text("Add")
+                }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    OutlinedButton(onClick = { onAdd(duration(), false) }, modifier = Modifier.weight(1f)) {
+                        Text("Add")
+                    }
+                    // Filled and rightmost, so it reads as the default action.
+                    Button(onClick = { onAdd(duration(), true) }, modifier = Modifier.weight(1f)) {
+                        Text("Start")
+                    }
+                }
             }
         },
+        // The buttons live in the body (pill-style, like the New Alarm page), so
+        // the dialog's own button slot is empty.
+        confirmButton = {},
         // No dismiss button by design (see the dev plan's Add Timer
         // assumption) - tapping outside or the system back button abandons
         // the form with no side effects, same as onDismissRequest above.
@@ -317,7 +328,7 @@ private fun TimersScreenEmptyPreview() {
             onResume = {},
             onReset = {},
             onDelete = {},
-            onAddTimer = {},
+            onAddTimer = { _, _ -> },
         )
     }
 }
@@ -342,7 +353,7 @@ private fun TimersScreenPopulatedPreview() {
             onResume = {},
             onReset = {},
             onDelete = {},
-            onAddTimer = {},
+            onAddTimer = { _, _ -> },
         )
     }
 }

@@ -54,10 +54,15 @@ class TimersViewModel(application: Application) : AndroidViewModel(application) 
         viewModelScope.launch { timerRepository.delete(id) }
     }
 
-    /** Creates a new [imb.tzalarmclock.domain.model.TimerState.STOPPED] timer at [duration]. */
-    fun addTimer(duration: Duration) {
+    /**
+     * Creates a new timer at [duration]: left
+     * [imb.tzalarmclock.domain.model.TimerState.STOPPED], or started right away if [start].
+     */
+    fun addTimer(duration: Duration, start: Boolean = false) {
         viewModelScope.launch {
-            timerRepository.save(Timer(configuredDuration = duration, createdAt = Instant.now()))
+            val now = Instant.now()
+            val timer = Timer(configuredDuration = duration, createdAt = now)
+            timerRepository.save(if (start) timer.start(now) else timer)
         }
     }
 
