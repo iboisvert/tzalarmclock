@@ -97,6 +97,8 @@ class MainActivity : ComponentActivity() {
     }
 
     companion object {
+        // EXTRA_DESTINATION and DESTINATION_TIMERS are duplicated in the
+        // `timer` module's TimerCountdownNotification, which can't see these.
         private const val EXTRA_DESTINATION = "imb.tzalarmclock.extra.DESTINATION"
         private const val EXTRA_ALARM_ID = "imb.tzalarmclock.extra.ALARM_ID"
         private const val DESTINATION_TIMERS = "timers"

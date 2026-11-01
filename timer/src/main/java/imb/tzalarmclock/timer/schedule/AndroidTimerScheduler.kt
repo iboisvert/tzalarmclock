@@ -7,6 +7,7 @@ import android.content.Intent
 import android.util.Log
 import imb.tzalarmclock.domain.model.Timer
 import imb.tzalarmclock.domain.repository.TimerRepository
+import imb.tzalarmclock.timer.countdown.TimerCountdownNotification
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
@@ -43,6 +44,22 @@ internal class AndroidTimerScheduler(
 
         val armed = plan.filter(::arm).mapTo(mutableSetOf()) { it.timerId }
         registry.replace(armed)
+
+        updateCountdown(plan, timers)
+    }
+
+    /**
+     * Points the countdown notification at the soonest running timer, or
+     * removes it once none are left. Done here because every start, pause,
+     * reset, and fire already funnels through [sync].
+     */
+    private fun updateCountdown(plan: List<ArmedTimer>, timers: List<Timer>) {
+        val next = plan.firstOrNull()?.let { soonest -> timers.first { it.id == soonest.timerId } }
+        if (next == null) {
+            TimerCountdownNotification.cancel(context)
+        } else {
+            TimerCountdownNotification.show(context, next, otherRunningCount = plan.size - 1)
+        }
     }
 
     /** @return true if the OS accepted the timer. */

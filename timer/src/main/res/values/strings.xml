@@ -7,4 +7,11 @@
     <string name="timer_fired_text_multiple">%1$d timers are up: %2$s</string>
     <string name="timer_dismiss_action">Dismiss</string>
     <string name="timer_dismiss_all_action">Dismiss all</string>
+    <string name="timer_countdown_channel_name">Running timers</string>
+    <string name="timer_countdown_channel_description">Counts down to the next timer to go off.</string>
+    <string name="timer_countdown_title">%1$s timer</string>
+    <plurals name="timer_countdown_others">
+        <item quantity="one">+%1$d more timer running</item>
+        <item quantity="other">+%1$d more timers running</item>
+    </plurals>
 </resources>
