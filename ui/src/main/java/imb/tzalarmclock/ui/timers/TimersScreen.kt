@@ -8,7 +8,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.KeyboardOptions
@@ -19,7 +18,6 @@ import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Replay
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
@@ -28,7 +26,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -207,6 +205,11 @@ private fun AddTimerDialog(onAdd: (Duration, Boolean) -> Unit, onDismiss: () -> 
     var hours by remember { mutableStateOf(DEFAULT_HOURS) }
     var minutes by remember { mutableStateOf(DEFAULT_MINUTES) }
     var seconds by remember { mutableStateOf(DEFAULT_SECONDS) }
+    val duration = {
+        Duration.ofHours(hours.toLong())
+            .plusMinutes(minutes.toLong())
+            .plusSeconds(seconds.toLong())
+    }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -236,31 +239,18 @@ private fun AddTimerDialog(onAdd: (Duration, Boolean) -> Unit, onDismiss: () -> 
                         modifier = Modifier.weight(1f),
                     )
                 }
-                val duration = {
-                    Duration.ofHours(hours.toLong())
-                        .plusMinutes(minutes.toLong())
-                        .plusSeconds(seconds.toLong())
-                }
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                ) {
-                    OutlinedButton(onClick = { onAdd(duration(), false) }, modifier = Modifier.weight(1f)) {
-                        Text("Add")
-                    }
-                    // Filled and rightmost, so it reads as the default action.
-                    Button(onClick = { onAdd(duration(), true) }, modifier = Modifier.weight(1f)) {
-                        Text("Start")
-                    }
-                }
             }
         },
-        // The buttons live in the body (pill-style, like the New Alarm page), so
-        // the dialog's own button slot is empty.
-        confirmButton = {},
-        // No dismiss button by design (see the dev plan's Add Timer
-        // assumption) - tapping outside or the system back button abandons
-        // the form with no side effects, same as onDismissRequest above.
+        confirmButton = {
+            Row {
+                TextButton(onClick = { onAdd(duration(), false) }) { Text("Add") }
+                // Rightmost, so it reads as the default action.
+                TextButton(onClick = { onAdd(duration(), true) }) { Text("Start") }
+            }
+        },
+        // Same as tapping outside or the system back button: abandons the form
+        // with no side effects.
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
     )
 }
 

@@ -861,7 +861,7 @@ Covers: *Navigation*, *Timers Summary Page*.
   `STOPPED` timer at that duration and returns to the list.
   - ⚠ No explicit Cancel is specified for this form (unlike the Details
     page's Stage 11 buttons) — treated as a lightweight dismissible
-    dialog/inline affordance with no side effects if abandoned, not a full
+    dialog with a Cancel text button, no side effects if abandoned, not a full
     navigation destination needing Stage 11-style dirty-state handling,
     since the spec's Add Timer section reads as a small entry form rather
     than a page.
@@ -1126,9 +1126,10 @@ Consolidated list of the ⚠ items above, for quick review/sign-off:
 33. Timer deletion has no confirmation step, deliberately inconsistent with
     alarm deletion (item 13), since a timer is cheap and fast to recreate
     (Stage 16).
-34. Add Timer's entry form has no explicit Cancel affordance — treated as a
-    lightweight dismissible dialog with no side effects if abandoned, not a
-    full page needing Stage-11-style dirty-state handling (Stage 16).
+34. Add Timer's entry form is a lightweight dialog with no side effects if
+    abandoned, not a full page needing Stage-11-style dirty-state handling.
+    The spec names no Cancel, but the dialog has a text Cancel button, for
+    consistency with the other dialogs and the Details page (Stage 16).
 35. Timer Ringing is Dismiss-only, with no Snooze — the spec names
     Start/Pause/Resume/Reset/Delete as the Timers Summary controls and never
     mentions snoozing a ringing timer; dismiss returns the timer to
